@@ -1,0 +1,362 @@
+@media (max-width: 1250px) and (min-width: 901px) {
+  .app-shell .navigation {
+    width: 185px;
+  }
+  .app-shell .brand {
+    padding: 20px 12px;
+  }
+  .app-shell .brand strong {
+    font-size: 12px;
+  }
+  .app-shell .left-rail {
+    width: 170px;
+    left: 24px;
+  }
+  .app-shell .right-rail {
+    width: 235px;
+    right: 24px;
+  }
+  .app-shell .core-heading {
+    left: 24px;
+  }
+  .app-shell .core-heading h1 {
+    font-size: 34px;
+  }
+  .app-shell .topbar {
+    padding: 0 22px;
+  }
+  .app-shell .clock > span {
+    display: none;
+  }
+  .app-shell .hologram-stage {
+    inset: 0 40px 0 25px;
+  }
+}
+@media (max-height: 780px) and (min-width: 901px) {
+  .app-shell .core-heading {
+    top: 23px;
+  }
+  .app-shell .core-heading h1 {
+    font-size: 30px;
+    margin: 12px 0;
+  }
+  .app-shell .left-rail {
+    top: 200px;
+    bottom: 65px;
+  }
+  .app-shell .right-rail {
+    top: 23px;
+  }
+  .app-shell .quick-commands {
+    margin-top: 20px;
+  }
+  .app-shell .quick-commands button {
+    padding: 10px 0;
+  }
+  .app-shell .service-line {
+    margin-bottom: 12px;
+  }
+  .app-shell .core-identifier {
+    bottom: 18%;
+  }
+  .app-shell .command-dock {
+    padding: 12px 22px 14px;
+  }
+}
+@media (max-width: 900px) {
+  .app-shell .navigation {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    width: 216px;
+    z-index: 70;
+  }
+  .app-shell .navigation.mobile-open {
+    transform: translateX(0);
+  }
+  .nav-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: #0008;
+  }
+  .app-shell .mobile-menu {
+    display: inline-flex;
+  }
+  .app-shell .topbar {
+    padding: 0 16px;
+    height: 62px;
+    gap: 10px;
+  }
+  .app-shell .clock > span,
+  .app-shell .alpha-label {
+    display: none;
+  }
+  .app-shell .local-status {
+    font-size: 8px;
+  }
+  .app-shell .clock time {
+    font-size: 12px;
+  }
+  .app-shell .breadcrumb {
+    font-size: 9px;
+    gap: 7px;
+  }
+  .app-shell .workspace {
+    min-height: 370px;
+  }
+  .app-shell .core-heading {
+    left: 22px;
+    top: 28px;
+  }
+  .app-shell .core-heading h1 {
+    font-size: 31px;
+    margin: 12px 0;
+  }
+  .app-shell .left-rail {
+    display: none;
+  }
+  .app-shell .right-rail {
+    right: 18px;
+    width: 215px;
+    top: 30px;
+    bottom: 65px;
+  }
+  .app-shell .core-identifier {
+    left: 41%;
+    bottom: 12%;
+  }
+  .app-shell .hologram-stage {
+    inset: 0 100px 0 -100px;
+  }
+  .app-shell .core-controls {
+    left: 41%;
+    bottom: 35px;
+  }
+  .app-shell .workspace-footer {
+    left: 22px;
+    right: 18px;
+    bottom: 13px;
+  }
+  .app-shell .full-view,
+  .app-shell .conversation-view {
+    padding: 25px 22px 45px;
+  }
+  .app-shell .command-dock {
+    padding: 12px 16px max(16px, env(safe-area-inset-bottom));
+  }
+  .app-shell .icon-button {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+  }
+  .app-shell .command-actions {
+    gap: 1px;
+  }
+  .app-shell .send-button {
+    margin-left: 4px;
+    min-width: 38px;
+  }
+  .app-shell .last-response {
+    gap: 10px;
+    font-size: 11px;
+  }
+  .app-shell .command-form {
+    padding: 8px 7px 8px 12px;
+    gap: 8px;
+  }
+  .app-shell .command-form textarea {
+    font-size: 16px;
+  }
+  .app-shell .full-view .task-row {
+    gap: 10px;
+  }
+  .app-shell .settings-body {
+    max-width: 100%;
+  }
+}
+@media (max-width: 600px) {
+  .app-shell .topbar-right {
+    display: none;
+  }
+  .app-shell .topbar {
+    padding: 0 12px;
+    height: 58px;
+  }
+  .app-shell .core-heading {
+    top: 23px;
+    left: 20px;
+  }
+  .app-shell .core-heading h1 {
+    font-size: 27px;
+    line-height: 1.12;
+    margin: 10px 0 12px;
+  }
+  .app-shell .core-heading .eyebrow {
+    font-size: 8px;
+  }
+  .app-shell .core-heading .core-phase {
+    font-size: 9px;
+  }
+  .app-shell .hologram-stage {
+    inset: 90px -40px 55px -40px;
+  }
+  .app-shell .core-identifier {
+    left: 50%;
+    bottom: 14%;
+    font-size: 15px;
+  }
+  .app-shell .core-identifier > span {
+    font-size: 15px;
+  }
+  .app-shell .core-identifier small {
+    font-size: 7px;
+  }
+  .app-shell .core-coordinates {
+    display: none;
+  }
+  .app-shell .core-controls {
+    left: 50%;
+    bottom: 24px;
+  }
+  .app-shell .right-rail {
+    right: 0;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: auto;
+    pointer-events: none;
+    overflow: visible;
+  }
+  .app-shell .right-rail > .hud-section {
+    display: none;
+  }
+  .app-shell .right-rail .widget-stack {
+    position: absolute;
+    right: 12px;
+    left: 12px;
+    top: 145px;
+    bottom: 58px;
+    overflow: auto;
+    pointer-events: auto;
+    padding: 0;
+  }
+  .app-shell .tool-content {
+    max-height: 260px;
+  }
+  .app-shell .tool-window {
+    background: rgba(10, 16, 19, 0.98);
+  }
+  .app-shell .workspace {
+    min-height: 355px;
+  }
+  .app-shell .workspace-footer {
+    font-size: 7px;
+    bottom: 8px;
+    left: 20px;
+    right: 16px;
+  }
+  .app-shell .command-form .command-symbol {
+    display: none;
+  }
+  .app-shell .command-form {
+    min-height: 56px;
+    padding-left: 12px;
+  }
+  .app-shell .command-form textarea {
+    height: 34px;
+  }
+  .app-shell .last-response {
+    min-height: 28px;
+    padding-bottom: 10px;
+  }
+  .app-shell .last-response p {
+    max-height: 36px;
+    font-size: 10px;
+  }
+  .app-shell .last-response > span {
+    font-size: 8px;
+  }
+  .app-shell .full-view,
+  .app-shell .conversation-view {
+    padding: 25px 18px 35px;
+  }
+  .app-shell .view-header h1 {
+    font-size: 25px;
+  }
+  .app-shell .message {
+    max-width: 94%;
+  }
+  .app-shell .conversation-history {
+    padding-right: 4px;
+  }
+  .app-shell .conversation-empty h2 {
+    font-size: 21px;
+  }
+  .app-shell .setting-row {
+    gap: 10px;
+    min-height: 70px;
+  }
+  .app-shell .inline-input {
+    max-width: 170px;
+  }
+  .app-shell .setting-value {
+    max-width: 160px;
+    line-height: 1.7;
+  }
+  .app-shell .segments button {
+    padding: 8px 9px;
+  }
+  .app-shell .toast {
+    bottom: 140px;
+    width: calc(100vw - 28px);
+    font-size: 11px;
+  }
+  .app-shell .render-warning {
+    left: 20%;
+    right: 20%;
+    top: 48%;
+  }
+  .app-shell.focus-mode .hologram-stage {
+    inset: 80px -20px 45px;
+  }
+  .app-shell .tool-window .icon-button {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+  }
+}
+@media (max-height: 520px) and (max-width: 900px) {
+  .app-shell {
+    height: auto;
+    min-height: 100svh;
+    overflow: auto;
+  }
+  .app-shell .workspace {
+    min-height: 430px;
+  }
+  .app-shell .clock {
+    margin-left: auto;
+  }
+  .app-shell .command-dock {
+    position: sticky;
+    bottom: 0;
+  }
+  .app-shell .right-rail {
+    top: 25px;
+  }
+  .app-shell .core-heading h1 {
+    font-size: 29px;
+  }
+}
+@media (max-width: 900px) {
+  .app-shell .navigation .nav-close {
+    display: inline-flex;
+  }
+  .app-shell .nav-section-label {
+    margin-top: 16px;
+  }
+}
