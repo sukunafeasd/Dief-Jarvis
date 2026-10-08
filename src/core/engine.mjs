@@ -9,6 +9,8 @@ import {
   canonical,
   sha256,
   verifyAudit,
+  VOICE_DEFAULTS,
+  ACCESS_DEFAULTS,
 } from "./model.mjs";
 
 function panelFrom(text) {
@@ -160,7 +162,14 @@ export class JarvisEngine {
       throw Error(
         "O registro local de auditoria nao passou na verificacao. Os dados foram preservados.",
       );
-    return state;
+    return {
+      ...state,
+      settings: {
+        ...VOICE_DEFAULTS,
+        ...state.settings,
+        access: { ...ACCESS_DEFAULTS, ...state.settings.access },
+      },
+    };
   }
   execute(action) {
     const task = this.queue.then(() => this.apply(action));
@@ -279,9 +288,15 @@ export class JarvisEngine {
           throw Error("Ajustes invalidos.");
         for (const key of Object.keys(changes)) {
           if (
-            !["name", "theme", "motion", "sound", "voice", "quality"].includes(
-              key,
-            )
+            ![
+              "name",
+              "theme",
+              "motion",
+              "sound",
+              "voice",
+              "quality",
+              ...Object.keys(VOICE_DEFAULTS),
+            ].includes(key)
           )
             throw Error("Ajuste nao autorizado.");
           if (key === "name") state.settings.name = textValue(changes[key], 60);
@@ -292,6 +307,8 @@ export class JarvisEngine {
             if (!["balanced", "economy"].includes(changes[key]))
               throw Error("Qualidade invalida.");
             state.settings.quality = changes[key];
+          } else if (Object.hasOwn(VOICE_DEFAULTS, key)) {
+            state.settings[key] = changes[key];
           } else {
             if (typeof changes[key] !== "boolean")
               throw Error("Opcao invalida.");
@@ -301,6 +318,35 @@ export class JarvisEngine {
         detail = Object.keys(changes).join(", ");
         break;
       }
+      case "permissions.update": {
+        const access = action.access;
+        if (
+          !access ||
+          typeof access !== "object" ||
+          Object.keys(access).some(
+            (key) => !Object.hasOwn(ACCESS_DEFAULTS, key),
+          )
+        )
+          throw Error("Politica de acesso invalida.");
+        const next = { ...state.settings.access, ...access };
+        const expands =
+          (next.mode === "full" && state.settings.access.mode !== "full") ||
+          ["web", "files", "desktop", "admin"].some(
+            (key) => next[key] && !state.settings.access[key],
+          );
+        if (expands && action.confirmed !== true)
+          throw Error("Confirme explicitamente a ampliacao de acesso.");
+        state.settings.access = next;
+        detail = `Politica ${next.mode}; web=${next.web}; arquivos=${next.files}; desktop=${next.desktop}; admin=${next.admin}`;
+        reply =
+          "Preferencias de acesso salvas. Recursos ainda sem executor continuam indisponiveis; administrador depende do UAC do Windows.";
+        break;
+      }
+      case "tool.web.search":
+        if (!state.settings.access.web)
+          throw Error("Acesso a pesquisa web desativado.");
+        detail = `Pesquisa solicitada: ${textValue(action.query, 300)}`;
+        break;
       case "audit.check":
         detail = "Cadeia local verificada";
         reply =

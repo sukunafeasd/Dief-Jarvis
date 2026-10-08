@@ -17,6 +17,22 @@ export const VIEWS = [
 ];
 export const THEMES = ["amber", "cyan"];
 export const ZERO_HASH = "0".repeat(64);
+export const ACCESS_DEFAULTS = Object.freeze({
+  mode: "restricted",
+  web: false,
+  files: false,
+  desktop: false,
+  admin: false,
+});
+export const VOICE_DEFAULTS = Object.freeze({
+  voiceURI: "",
+  voiceLang: "pt-BR",
+  voiceRate: 0.96,
+  voicePitch: 0.9,
+  voiceVolume: 0.85,
+  motionMode: "system",
+  intensity: 1,
+});
 
 export function initialState() {
   return {
@@ -32,6 +48,8 @@ export function initialState() {
       sound: false,
       voice: false,
       quality: "balanced",
+      ...VOICE_DEFAULTS,
+      access: { ...ACCESS_DEFAULTS },
     },
     tasks: [],
     memories: [],
@@ -69,6 +87,34 @@ export function validateState(state) {
     if (!Array.isArray(state[key]) || state[key].length > limit)
       throw Error("Dados locais fora do formato esperado.");
   }
+  const options = { ...VOICE_DEFAULTS, ...state.settings };
+  if (
+    !["system", "always"].includes(options.motionMode) ||
+    !["pt-BR", "en-GB"].includes(options.voiceLang) ||
+    typeof options.voiceURI !== "string" ||
+    options.voiceURI.length > 500 ||
+    !Number.isFinite(options.voiceRate) ||
+    options.voiceRate < 0.6 ||
+    options.voiceRate > 1.4 ||
+    !Number.isFinite(options.voicePitch) ||
+    options.voicePitch < 0.5 ||
+    options.voicePitch > 1.5 ||
+    !Number.isFinite(options.voiceVolume) ||
+    options.voiceVolume < 0 ||
+    options.voiceVolume > 1 ||
+    !Number.isFinite(options.intensity) ||
+    options.intensity < 0.5 ||
+    options.intensity > 1.5
+  )
+    throw Error("Configuracao de voz ou movimento invalida.");
+  const access = state.settings.access || ACCESS_DEFAULTS;
+  if (
+    !["restricted", "supervised", "full"].includes(access.mode) ||
+    ["web", "files", "desktop", "admin"].some(
+      (key) => typeof access[key] !== "boolean",
+    )
+  )
+    throw Error("Politica de acesso invalida.");
   for (const task of state.tasks)
     if (
       typeof task.id !== "string" ||

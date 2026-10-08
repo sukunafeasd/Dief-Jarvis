@@ -1,7 +1,7 @@
 # Dief Jarvis
 
 Assistente pessoal independente do Painel Dief.
-Versao atual: **1.0.0-alpha.1**, primeira etapa da interface. Nao e a versao
+Versao atual: **1.0.0-alpha.2**, segunda etapa da interface. Nao e a versao
 completa 1.0 nem um agente conectado a provedores externos.
 
 ## O que funciona agora
@@ -13,13 +13,17 @@ completa 1.0 nem um agente conectado a provedores externos.
 - Auditoria das acoes com hashes encadeados, verificacao e exportacao consentida.
 - Interface desktop, compacta/mobile e modo foco.
 - Aplicativo Electron proprio, sem exigir administrador, com renderer isolado.
+- Ajustes em seis secoes, selecao/teste de voz e movimento explicitamente configuravel.
+- Politicas de acesso com confirmacao, revogacao e pesquisa externa autorizada no EXE.
 - Persistencia browser em IndexedDB; no aplicativo, SQLite com payload protegido
   pelo safeStorage do Windows. Nao ha sincronizacao Mongo nesta etapa.
 
 ## Limites importantes
 
 O interprete de comandos e deterministico: nao e ainda uma IA generativa.
-Nao controla Windows, arquivos externos, contas, e-mails, agenda ou navegador.
+Nao controla Windows, arquivos externos, contas, e-mails ou agenda.
+Pesquisa no EXE apenas abre o navegador externo, quando explicitamente autorizada;
+nao le resultados nem navega autonomamente nesta etapa.
 Nenhum conector e mostrado como ativo sem implementacao.
 Voz de entrada browser usa Web Speech quando suportado, somente apos consentimento
 de sessao, e pode usar o servico do navegador. No Electron ela fica indisponivel
@@ -92,3 +96,5 @@ sem mostrar janela. Valida SQLite protegido, comando e isolamento do renderer.
 `docs/`: arquitetura, referencia e plano completo 1.0.
 
 Nenhum segredo, banco pessoal ou dados de usuario deve entrar neste repositorio.
+
+Permissoes, limites e direcao de voz: `docs/CONTROLE-E-VOZ.md`.

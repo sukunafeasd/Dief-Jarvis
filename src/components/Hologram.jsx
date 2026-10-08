@@ -209,27 +209,36 @@ export function buildCore(theme = "amber", economy = false) {
   heart.add(light);
   const scan = new THREE.Group();
   root.add(scan);
+  const tickValues = [];
+  const tickColors = [];
   for (let i = 0; i < 100; i++) {
     const a = (i / 100) * Math.PI * 2;
-    const geo = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(Math.cos(a) * 1.72, Math.sin(a) * 1.72, 0),
-      new THREE.Vector3(
-        Math.cos(a) * (i % 5 === 0 ? 1.82 : 1.76),
-        Math.sin(a) * (i % 5 === 0 ? 1.82 : 1.76),
-        0,
-      ),
-    ]);
-    scan.add(
-      new THREE.Line(
-        geo,
-        new THREE.LineBasicMaterial({
-          color,
-          transparent: true,
-          opacity: i % 5 === 0 ? 0.62 : 0.2,
-        }),
-      ),
-    );
+    for (const r of [1.72, i % 5 === 0 ? 1.82 : 1.76]) {
+      tickValues.push(Math.cos(a) * r, Math.sin(a) * r, 0);
+      tickColors.push(
+        ...color
+          .clone()
+          .multiplyScalar(i % 5 === 0 ? 1 : 0.35)
+          .toArray(),
+      );
+    }
   }
+  scan.add(
+    new THREE.LineSegments(
+      new THREE.BufferGeometry()
+        .setAttribute(
+          "position",
+          new THREE.Float32BufferAttribute(tickValues, 3),
+        )
+        .setAttribute("color", new THREE.Float32BufferAttribute(tickColors, 3)),
+      new THREE.LineBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.65,
+        blending: THREE.AdditiveBlending,
+      }),
+    ),
+  );
   const orbit = new THREE.Group();
   root.add(orbit);
   for (let i = 0; i < 2; i++) {
@@ -253,16 +262,75 @@ export function buildCore(theme = "amber", economy = false) {
     line.rotation.set(0.8 + i * 0.7, 0.35 + i * 0.8, i * 0.4);
     orbit.add(line);
   }
-  return { root, shell, rings, heart, scan, orbit, points, texture };
+  const beacons = new THREE.Group();
+  root.add(beacons);
+  for (let i = 0; i < 5; i++) {
+    const node = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: texture,
+        color: i % 2 ? pale : color,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    );
+    node.scale.setScalar(i === 0 ? 0.16 : 0.1);
+    beacons.add(node);
+  }
+  const pulses = new THREE.Group();
+  root.add(pulses);
+  for (let i = 0; i < 3; i++) {
+    const geo = new THREE.BufferGeometry().setFromPoints(
+      Array.from({ length: 97 }, (_, j) => {
+        const angle = (j / 96) * Math.PI * 2;
+        return new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0);
+      }),
+    );
+    pulses.add(
+      new THREE.Line(
+        geo,
+        new THREE.LineBasicMaterial({
+          color: pale,
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        }),
+      ),
+    );
+  }
+  return {
+    root,
+    shell,
+    rings,
+    heart,
+    scan,
+    orbit,
+    points,
+    texture,
+    beacons,
+    pulses,
+  };
 }
 
-export default function Hologram({ theme, motion, quality, phase, onError }) {
+export default function Hologram({
+  theme,
+  motion,
+  quality,
+  phase,
+  impulse = 0,
+  intensity = 1,
+  motionMode = "system",
+  onError,
+}) {
   const host = useRef(null);
-  const live = useRef({ phase, motion });
+  const live = useRef({ phase, motion, impulse, intensity, motionMode });
+  const wakeRef = useRef(null);
   const drag = useRef(null);
   useEffect(() => {
-    live.current = { phase, motion };
-  }, [phase, motion]);
+    live.current = { phase, motion, impulse, intensity, motionMode };
+    wakeRef.current?.();
+  }, [phase, motion, impulse, intensity, motionMode]);
   useEffect(() => {
     const element = host.current;
     if (!element) return;
@@ -298,6 +366,9 @@ export default function Hologram({ theme, motion, quality, phase, onError }) {
     let last = 0;
     let visible = true;
     let stopped = false;
+    let energy = 0;
+    let impulseAt = -10000;
+    let seenImpulse = live.current.impulse;
     const resize = () => {
       const { width, height } = element.getBoundingClientRect();
       if (!width || !height) return;
@@ -326,23 +397,76 @@ export default function Hologram({ theme, motion, quality, phase, onError }) {
       timer = 0;
       if (stopped) return;
       if (!document.hidden && visible) {
-        const moving = live.current.motion && !media.matches;
+        const moving =
+          live.current.motion &&
+          (!media.matches || live.current.motionMode === "always");
         const dt = last ? Math.min((now - last) / 1000, 0.08) : 0;
         last = now;
         if (moving) {
-          core.shell.rotation.y += dt * 0.12;
-          core.shell.rotation.x = Math.sin(now * 0.0001) * 0.08;
+          const t = now / 1000;
+          if (seenImpulse !== live.current.impulse) {
+            seenImpulse = live.current.impulse;
+            impulseAt = t;
+          }
+          const active = [
+            "working",
+            "speaking",
+            "listening",
+            "received",
+            "responding",
+          ].includes(live.current.phase);
+          energy = THREE.MathUtils.lerp(
+            energy,
+            active ? 1 : 0,
+            Math.min(dt * 5, 1),
+          );
+          const strength = live.current.intensity;
+          core.shell.rotation.y += dt * (0.34 + energy * 0.22);
+          core.shell.rotation.z = Math.sin(t * 0.32) * 0.12;
+          core.shell.rotation.x = Math.sin(t * 0.22) * 0.2;
           core.rings.rotation.z +=
-            dt * (live.current.phase === "working" ? 0.32 : 0.09);
-          core.heart.rotation.y += dt * 0.19;
-          core.scan.rotation.z -= dt * 0.035;
-          core.orbit.rotation.y += dt * 0.018;
-          const active = ["working", "speaking", "listening"].includes(
-            live.current.phase,
-          );
+            dt * (live.current.phase === "working" ? 1.4 : 0.38);
+          core.rings.children.forEach((ring, i) => {
+            ring.rotation.y += dt * (i % 2 ? -0.2 : 0.27);
+          });
+          core.heart.rotation.y += dt * (0.6 + energy * 1.2);
+          core.heart.rotation.z += dt * 0.18;
+          core.scan.rotation.z -= dt * (0.2 + energy * 0.16);
+          core.orbit.rotation.y += dt * 0.16;
+          const rhythm =
+            live.current.phase === "speaking"
+              ? Math.sin(t * 13) * Math.sin(t * 5.3)
+              : Math.sin(t * 5);
           core.heart.scale.setScalar(
-            active ? 1 + Math.sin(now * 0.006) * 0.13 : 1,
+            1 +
+              strength *
+                (0.04 * Math.sin(t * 2) + energy * (0.14 + rhythm * 0.13)),
           );
+          core.points.material.size =
+            0.038 + strength * (0.009 + energy * 0.014);
+          core.points.material.opacity = Math.min(
+            1,
+            0.72 + Math.sin(t * 2) * 0.08 + energy * 0.2,
+          );
+          core.beacons.children.forEach((node, i) => {
+            const a = t * (0.7 + i * 0.12) + i * 1.26;
+            const tilt = 0.55 + i * 0.31;
+            node.position.set(
+              Math.cos(a) * 1.68,
+              Math.sin(a) * Math.cos(tilt) * 1.68,
+              Math.sin(a) * Math.sin(tilt) * 1.68,
+            );
+          });
+          core.pulses.children.forEach((ring, i) => {
+            const age = t - impulseAt - i * 0.18;
+            const period =
+              live.current.phase === "listening" ? (t + i * 0.45) % 1.4 : age;
+            ring.visible = period >= 0 && period < 1.4;
+            ring.scale.setScalar(0.3 + Math.max(0, period) * 1.13);
+            ring.material.opacity =
+              Math.max(0, 0.6 * (1 - period / 1.4)) * strength;
+          });
+          renderer.domElement.dataset.phase = live.current.phase;
         }
         renderer.render(scene, camera);
         renderer.domElement.dataset.frame = String(now);
@@ -351,7 +475,10 @@ export default function Hologram({ theme, motion, quality, phase, onError }) {
     };
     const schedule = () => {
       if (timer || stopped || document.hidden || !visible) return;
-      if (!live.current.motion || media.matches) {
+      if (
+        !live.current.motion ||
+        (media.matches && live.current.motionMode !== "always")
+      ) {
         renderer.render(scene, camera);
         return;
       }
@@ -366,10 +493,15 @@ export default function Hologram({ theme, motion, quality, phase, onError }) {
       timer = 0;
       schedule();
     };
+    wakeRef.current = wake;
     document.addEventListener("visibilitychange", wake);
     media.addEventListener("change", wake);
     const onDown = (event) => {
-      if (!live.current.motion || media.matches) return;
+      if (
+        !live.current.motion ||
+        (media.matches && live.current.motionMode !== "always")
+      )
+        return;
       drag.current = { x: event.clientX, y: event.clientY };
       element.setPointerCapture(event.pointerId);
     };
@@ -402,6 +534,7 @@ export default function Hologram({ theme, motion, quality, phase, onError }) {
     schedule();
     return () => {
       stopped = true;
+      wakeRef.current = null;
       clearTimeout(timer);
       observer.disconnect();
       intersection.disconnect();

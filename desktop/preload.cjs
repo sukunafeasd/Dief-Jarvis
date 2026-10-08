@@ -5,5 +5,6 @@ contextBridge.exposeInMainWorld(
     read: () => ipcRenderer.invoke("jarvis:read"),
     execute: (action) => ipcRenderer.invoke("jarvis:execute", action),
     platform: () => ipcRenderer.invoke("jarvis:platform"),
+    search: (query) => ipcRenderer.invoke("jarvis:search", query),
   }),
 );

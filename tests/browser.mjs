@@ -107,6 +107,15 @@ try {
     await page.waitForTimeout(100);
   }
   await command("crie uma tarefa: Revisar interface");
+  assert.equal(
+    await page.locator(".phase-responding").count(),
+    1,
+    "completed commands show their response state",
+  );
+  assert.equal(
+    await page.locator("canvas").getAttribute("data-phase"),
+    "responding",
+  );
   await page
     .locator('[data-panel="tasks"]')
     .getByText("Revisar interface", { exact: true })
@@ -197,6 +206,76 @@ try {
     await page.locator("canvas").evaluate((canvas) => canvas.toDataURL()),
     reduced,
     "reduced motion honored",
+  );
+  await page.getByRole("button", { name: "Ajustes", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Preferencia de movimento" })
+    .selectOption("always");
+  await page.waitForTimeout(200);
+  const override = await page
+    .locator("canvas")
+    .evaluate((canvas) => canvas.toDataURL());
+  await page.waitForTimeout(350);
+  assert.notEqual(
+    await page.locator("canvas").evaluate((canvas) => canvas.toDataURL()),
+    override,
+    "explicit movement preference resumes core",
+  );
+  await page.getByRole("button", { name: "Voz e audio", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Idioma da voz" })
+    .selectOption("en-GB");
+  await page.getByRole("button", { name: "Acesso ao PC", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Politica de acesso" })
+    .selectOption("full");
+  await page.getByRole("button", { name: "Cancelar", exact: true }).click();
+  assert.equal(
+    await page
+      .getByRole("combobox", { name: "Politica de acesso" })
+      .inputValue(),
+    "restricted",
+  );
+  await page
+    .getByRole("combobox", { name: "Politica de acesso" })
+    .selectOption("full");
+  await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+  await page.waitForTimeout(100);
+  assert.equal(
+    await page
+      .getByRole("combobox", { name: "Politica de acesso" })
+      .inputValue(),
+    "full",
+  );
+  await page
+    .getByRole("button", { name: "Revogar todos os acessos", exact: true })
+    .click();
+  await page.waitForTimeout(100);
+  assert.equal(
+    await page
+      .getByRole("combobox", { name: "Politica de acesso" })
+      .inputValue(),
+    "restricted",
+  );
+  for (const [width, height, name] of [
+    [1440, 900, "settings"],
+    [393, 851, "settings-mobile"],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await page.waitForTimeout(150);
+    assert.equal(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > innerWidth,
+      ),
+      false,
+    );
+    await page.screenshot({ path: `artifacts/${name}.png`, fullPage: true });
+  }
+  await page.reload();
+  await page.getByRole("button", { name: "Voz e audio", exact: true }).click();
+  assert.equal(
+    await page.getByRole("combobox", { name: "Idioma da voz" }).inputValue(),
+    "en-GB",
   );
   assert.deepEqual(errors, []);
   console.log(

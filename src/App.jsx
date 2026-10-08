@@ -28,7 +28,6 @@ import {
   Plus,
   Check,
   Trash2,
-  Download,
   Clock3,
   ChevronRight,
   Search,
@@ -43,6 +42,8 @@ import { JarvisEngine } from "./core/engine.mjs";
 import { browserStorage } from "./core/storage.mjs";
 import { PANELS, initialState, verifyAudit } from "./core/model.mjs";
 import { VoiceChannel } from "./voice.mjs";
+import Settings from "./components/Settings.jsx";
+import "./core-effects.css";
 
 const NAV = [
   ["central", Aperture, "Central"],
@@ -77,6 +78,8 @@ const PHASES = {
   working: "Processando comando",
   speaking: "Falando",
   listening: "Ouvindo",
+  received: "Comando recebido",
+  responding: "Resposta pronta",
 };
 const date = (at) =>
   new Date(at).toLocaleString("pt-BR", {
@@ -334,108 +337,6 @@ function Connections() {
     </div>
   );
 }
-function Settings({ state, act, platform, confirm, exportData }) {
-  const [name, setName] = useState(state.settings.name);
-  useEffect(() => setName(state.settings.name), [state.settings.name]);
-  return (
-    <div className="settings-body">
-      <form
-        className="setting-row"
-        onSubmit={(event) => {
-          event.preventDefault();
-          act({ type: "settings.update", changes: { name } });
-        }}
-      >
-        <label htmlFor="owner-name">Seu nome</label>
-        <div className="inline-input">
-          <input
-            id="owner-name"
-            value={name}
-            maxLength={60}
-            onChange={(event) => setName(event.target.value)}
-          />
-          <IconButton icon={Check} label="Salvar nome" type="submit" />
-        </div>
-      </form>
-      <div className="setting-row">
-        <span>Paleta do nucleo</span>
-        <div className="swatches">
-          {[
-            ["amber", "Ambar"],
-            ["cyan", "Ciano"],
-          ].map(([theme, label]) => (
-            <button
-              key={theme}
-              className={`swatch ${theme}`}
-              aria-label={label}
-              title={label}
-              aria-pressed={state.settings.theme === theme}
-              onClick={() =>
-                act({ type: "settings.update", changes: { theme } })
-              }
-            />
-          ))}
-        </div>
-      </div>
-      {[
-        ["motion", "Movimento do nucleo"],
-        ["sound", "Efeitos sonoros"],
-        ["voice", "Resposta falada"],
-      ].map(([key, label]) => (
-        <label className="setting-row" key={key}>
-          <span>{label}</span>
-          <input
-            type="checkbox"
-            className="toggle"
-            checked={state.settings[key]}
-            onChange={(event) =>
-              act({
-                type: "settings.update",
-                changes: { [key]: event.target.checked },
-              })
-            }
-          />
-        </label>
-      ))}
-      <label className="setting-row">
-        <span>Renderizacao</span>
-        <select
-          value={state.settings.quality}
-          onChange={(event) =>
-            act({
-              type: "settings.update",
-              changes: { quality: event.target.value },
-            })
-          }
-        >
-          <option value="balanced">Equilibrada</option>
-          <option value="economy">Economica</option>
-        </select>
-      </label>
-      <div className="setting-row">
-        <span>Armazenamento</span>
-        <span className="setting-value">{platform.storage}</span>
-      </div>
-      <div className="setting-row">
-        <span>IA e sincronizacao</span>
-        <span className="setting-value">Nao conectadas</span>
-      </div>
-      <div className="export-row">
-        <button
-          className="secondary-button"
-          onClick={() =>
-            confirm(
-              "Exportar conversas, tarefas, memorias e auditoria em JSON legivel? Guarde o arquivo em um local privado.",
-              exportData,
-            )
-          }
-        >
-          <Download size={16} /> Exportar dados locais
-        </button>
-      </div>
-    </div>
-  );
-}
 function Briefing({ state }) {
   const open = state.tasks.filter((task) => !task.done);
   return (
@@ -479,6 +380,9 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState("");
   const [phase, setPhase] = useState("idle");
+  const [impulse, setImpulse] = useState(0);
+  const settleTimer = useRef(null);
+  const responseTimer = useRef(null);
   const [modal, setModal] = useState(null);
   const [notice, setNotice] = useState("");
   const [renderError, setRenderError] = useState("");
@@ -584,6 +488,8 @@ export default function App() {
       mounted.current = false;
       clearInterval(timer);
       voice.dispose();
+      clearTimeout(settleTimer.current);
+      clearTimeout(responseTimer.current);
       document.removeEventListener("visibilitychange", visibility);
       document.removeEventListener("keydown", key);
       window.removeEventListener("pagehide", stop);
@@ -629,7 +535,7 @@ export default function App() {
         if (result.reply && action.type !== "chat.send")
           setNotice(result.reply);
         if (result.reply && result.state.settings.voice)
-          voice.speak(result.reply);
+          voice.speak(result.reply, result.state.settings);
         return result;
       } catch (error) {
         if (mounted.current) setNotice(error.message);
@@ -645,15 +551,29 @@ export default function App() {
     sendGuard.current = true;
     setBusy(true);
     setDraft("");
-    setPhase("working");
+    clearTimeout(settleTimer.current);
+    clearTimeout(responseTimer.current);
+    setImpulse((value) => value + 1);
     autoScroll.current = true;
     voice.stop();
-    setPhase("working");
+    setPhase("received");
+    settleTimer.current = setTimeout(() => {
+      if (mounted.current && sendGuard.current) setPhase("working");
+    }, 160);
     const result = await act({ type: "chat.send", content });
     if (mounted.current) {
       if (!result) setDraft((current) => current || content);
       setBusy(false);
-      if (!state.settings.voice) setPhase("idle");
+      clearTimeout(settleTimer.current);
+      if (!result?.state.settings.voice) {
+        setPhase(result ? "responding" : "idle");
+        responseTimer.current = setTimeout(() => {
+          if (mounted.current)
+            setPhase((current) =>
+              current === "responding" ? "idle" : current,
+            );
+        }, 1400);
+      }
       input.current?.focus();
     }
     sendGuard.current = false;
@@ -727,14 +647,34 @@ export default function App() {
     ) : key === "connections" ? (
       <Connections />
     ) : key === "settings" ? (
-      <Settings {...common} platform={platform} exportData={exportData} />
+      <Settings
+        {...common}
+        platform={platform}
+        exportData={exportData}
+        previewVoice={(text, options) => {
+          clearTimeout(responseTimer.current);
+          voice.stop();
+          voice.speak(text, options);
+        }}
+        onSearch={async (query) => {
+          try {
+            if (!window.jarvisDesktop?.search)
+              throw Error("Pesquisa externa disponivel apenas no EXE.");
+            const result = await window.jarvisDesktop.search(query);
+            updateState(result.state);
+            setNotice("Pesquisa aberta no navegador.");
+          } catch (error) {
+            setNotice(error.message);
+          }
+        }}
+      />
     ) : (
       <Briefing state={state} />
     );
   const auditLatest = [...state.audit].reverse().slice(0, 4);
   return (
     <div
-      className={`app-shell theme-${state.settings.theme} ${state.focus ? "focus-mode" : ""}`}
+      className={`app-shell theme-${state.settings.theme} phase-${phase} ${state.focus ? "focus-mode" : ""}`}
     >
       <aside
         ref={navRef}
@@ -853,6 +793,9 @@ export default function App() {
                 motion={state.settings.motion}
                 quality={state.settings.quality}
                 phase={phase}
+                impulse={impulse}
+                intensity={state.settings.intensity ?? 1}
+                motionMode={state.settings.motionMode || "system"}
                 onError={hologramError}
               />
             </React.Suspense>

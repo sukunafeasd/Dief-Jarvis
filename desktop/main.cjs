@@ -4,6 +4,8 @@ const {
   protocol,
   ipcMain,
   safeStorage,
+  dialog,
+  shell,
 } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs/promises");
@@ -154,7 +156,56 @@ app
     });
     ipcMain.handle("jarvis:execute", async (event, action) => {
       authorize(event);
+      if (action?.type === "tool.web.search")
+        throw Error("Use o executor de pesquisa autorizado.");
+      if (action?.type === "permissions.update") {
+        const current = (await engine.read()).settings.access;
+        const next = action.access || {};
+        const expands =
+          (next.mode === "full" && current.mode !== "full") ||
+          ["web", "files", "desktop", "admin"].some(
+            (key) => next[key] && !current[key],
+          );
+        if (expands) {
+          const result = await dialog.showMessageBox(window, {
+            type: "warning",
+            title: "Autorizar Dief Jarvis",
+            defaultId: 1,
+            cancelId: 1,
+            buttons: ["Autorizar", "Cancelar"],
+            message: "Confirmar ampliacao da politica de acesso?",
+            detail:
+              "Pesquisa web abre o navegador externo. Arquivos, controle do PC e administrador ainda aguardam executores. Esta preferencia nao desativa UAC, nao libera comandos arbitrarios e pode ser revogada nos ajustes.",
+          });
+          if (result.response !== 0)
+            throw Error("Autorizacao cancelada. Acesso anterior preservado.");
+        }
+        action = { ...action, confirmed: true };
+      }
       return engine.execute(action);
+    });
+    ipcMain.handle("jarvis:search", async (event, query) => {
+      authorize(event);
+      if (typeof query !== "string" || !query.trim() || query.length > 300)
+        throw Error("Pesquisa invalida.");
+      const access = (await engine.read()).settings.access;
+      if (!access.web) throw Error("Autorize pesquisa web nos ajustes.");
+      if (access.mode !== "full") {
+        const result = await dialog.showMessageBox(window, {
+          type: "question",
+          buttons: ["Abrir pesquisa", "Cancelar"],
+          defaultId: 1,
+          cancelId: 1,
+          message: "Pesquisar no navegador externo?",
+          detail: `O texto sera enviado ao Bing: ${query}`,
+        });
+        if (result.response !== 0) throw Error("Pesquisa cancelada.");
+      }
+      // Never accepts URLs, executable paths or shell fragments from the renderer.
+      await shell.openExternal(
+        `https://www.bing.com/search?q=${encodeURIComponent(query.trim())}`,
+      );
+      return engine.execute({ type: "tool.web.search", query: query.trim() });
     });
     ipcMain.handle("jarvis:platform", (event) => {
       authorize(event);
@@ -163,6 +214,7 @@ app
         storage: safeStorage.isEncryptionAvailable()
           ? "SQLite · protecao do Windows"
           : "Protecao do sistema indisponivel",
+        capabilities: { web: true, files: false, desktop: false, admin: false },
       };
     });
     window.on("closed", () => {

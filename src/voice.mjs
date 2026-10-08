@@ -4,6 +4,7 @@ export class VoiceChannel {
     this.recognition = null;
     this.utterance = null;
     this.closed = false;
+    this.startTimeout = null;
   }
   available() {
     return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -60,6 +61,7 @@ export class VoiceChannel {
     }
   }
   stop() {
+    clearTimeout(this.startTimeout);
     const recognition = this.recognition;
     this.recognition = null;
     this.utterance = null;
@@ -74,31 +76,69 @@ export class VoiceChannel {
     if ("speechSynthesis" in window) speechSynthesis.cancel();
     if (!this.closed) this.onPhase("idle");
   }
-  speak(text) {
+  speak(text, options = {}) {
     if (this.closed || !("speechSynthesis" in window)) {
       this.onPhase("idle");
       return;
     }
+    clearTimeout(this.startTimeout);
     speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     this.utterance = utterance;
-    utterance.lang = "pt-BR";
-    utterance.rate = 1.04;
-    const voice = speechSynthesis
-      .getVoices()
-      .find((voice) => voice.lang.toLowerCase().startsWith("pt"));
+    utterance.lang = options.voiceLang || "pt-BR";
+    utterance.rate = options.voiceRate ?? 0.96;
+    utterance.pitch = options.voicePitch ?? 0.9;
+    utterance.volume = options.voiceVolume ?? 0.85;
+    const voices = speechSynthesis.getVoices();
+    const voice =
+      voices.find(
+        (voice) =>
+          voice.voiceURI === options.voiceURI &&
+          voice.lang.toLowerCase().startsWith(utterance.lang.toLowerCase()),
+      ) ||
+      voices.find((voice) =>
+        voice.lang.toLowerCase().startsWith(utterance.lang.toLowerCase()),
+      );
     if (voice) utterance.voice = voice;
     const current = () => !this.closed && this.utterance === utterance;
     utterance.onstart = () => {
-      if (current()) this.onPhase("speaking");
+      if (current()) {
+        clearTimeout(this.startTimeout);
+        this.onPhase("speaking");
+      }
     };
     utterance.onend = utterance.onerror = () => {
       if (current()) {
+        clearTimeout(this.startTimeout);
         this.utterance = null;
         this.onPhase("idle");
       }
     };
-    speechSynthesis.speak(utterance);
+    utterance.onerror = () => {
+      if (current()) {
+        clearTimeout(this.startTimeout);
+        this.utterance = null;
+        this.onPhase("idle");
+        this.onError(
+          "A voz nao conseguiu reproduzir a resposta. O texto foi preservado.",
+        );
+      }
+    };
+    this.startTimeout = setTimeout(() => {
+      if (current()) {
+        this.utterance = null;
+        speechSynthesis.cancel();
+        this.onPhase("idle");
+        this.onError(
+          "A voz nao iniciou. Verifique as vozes instaladas; a resposta continua no texto.",
+        );
+      }
+    }, 5000);
+    try {
+      speechSynthesis.speak(utterance);
+    } catch {
+      utterance.onerror();
+    }
   }
   dispose() {
     this.closed = true;

@@ -83,3 +83,48 @@ test("speech cancellation and old utterance callbacks cannot reset a newer speec
   delete globalThis.speechSynthesis;
   delete globalThis.SpeechSynthesisUtterance;
 });
+test("voice selection respects language and settings, with honest error on synthesis failure", () => {
+  let spoken;
+  let error = "";
+  globalThis.window = { speechSynthesis: {} };
+  const voices = [
+    { voiceURI: "british", lang: "en-GB" },
+    { voiceURI: "portuguese", lang: "pt-BR" },
+  ];
+  globalThis.speechSynthesis = {
+    cancel() {},
+    getVoices: () => voices,
+    speak: (value) => {
+      spoken = value;
+    },
+  };
+  globalThis.SpeechSynthesisUtterance = class {
+    constructor(text) {
+      this.text = text;
+    }
+  };
+  const channel = new VoiceChannel({
+    onTranscript() {},
+    onPhase() {},
+    onError: (text) => {
+      error = text;
+    },
+  });
+  channel.speak("Ready", {
+    voiceURI: "british",
+    voiceLang: "en-GB",
+    voiceRate: 0.8,
+    voicePitch: 0.85,
+    voiceVolume: 0.4,
+  });
+  assert.equal(spoken.voice, voices[0]);
+  assert.equal(spoken.rate, 0.8);
+  assert.equal(spoken.pitch, 0.85);
+  assert.equal(spoken.volume, 0.4);
+  spoken.onerror();
+  assert.match(error, /preservado/);
+  channel.dispose();
+  delete globalThis.window;
+  delete globalThis.speechSynthesis;
+  delete globalThis.SpeechSynthesisUtterance;
+});

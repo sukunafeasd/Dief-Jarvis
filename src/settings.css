@@ -1,0 +1,166 @@
+.settings-console {
+  --line: var(--border);
+  display: grid;
+  grid-template-columns: 158px minmax(0, 1fr);
+  gap: 24px;
+  min-width: 0;
+}
+.settings-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-right: 1px solid var(--line);
+  padding-right: 14px;
+}
+.settings-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 12px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.settings-tabs button[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--line);
+}
+.settings-tabs button:hover {
+  color: var(--accent);
+  background: #ffffff05;
+}
+.settings-section {
+  min-width: 0;
+  animation: settings-in 0.25s ease both;
+}
+.settings-heading {
+  padding: 4px 0 18px;
+  border-bottom: 1px solid var(--line);
+}
+.settings-heading h3 {
+  font-size: 21px;
+  font-weight: 500;
+  margin: 9px 0 0;
+}
+.config-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.config-note svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--accent);
+}
+.config-note p {
+  margin: 0;
+}
+.settings-section .secondary-button {
+  margin: 12px 10px 4px 0;
+}
+.settings-console .range-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+.settings-console .range-row > span {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  gap: 16px;
+}
+.range-row output {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.settings-console .range-row input {
+  accent-color: var(--accent);
+  width: 100%;
+  min-height: 24px;
+  cursor: pointer;
+}
+.permission-row small {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+.voice-direction {
+  border-top: 1px solid var(--line);
+  margin-top: 20px;
+  padding-top: 22px;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.voice-direction strong {
+  display: block;
+  margin-top: 10px;
+  font-weight: 500;
+}
+.voice-direction p {
+  color: var(--muted);
+}
+.voice-direction a {
+  color: var(--accent);
+}
+.web-search {
+  border-top: 1px solid var(--line);
+  margin-top: 24px;
+  padding-top: 18px;
+}
+.web-search > label {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+.settings-section .setting-row select {
+  max-width: 240px;
+}
+@keyframes settings-in {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (max-width: 680px) {
+  .settings-console {
+    display: block;
+  }
+  .settings-tabs {
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 0 0 12px;
+    margin-bottom: 20px;
+    gap: 3px;
+  }
+  .settings-tabs button {
+    flex-shrink: 0;
+    padding: 10px 8px;
+    min-height: 42px;
+  }
+  .settings-tabs button svg {
+    width: 14px;
+  }
+  .settings-section .setting-row select {
+    max-width: 190px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-section {
+    animation: none;
+  }
+}

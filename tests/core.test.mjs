@@ -32,6 +32,93 @@ function fixture() {
     tamper: (fn) => fn(state),
   };
 }
+test("access expansion requires explicit consent, revocation is immediate and cannot bypass normal settings", async () => {
+  const f = fixture();
+  await assert.rejects(
+    f.engine.execute({
+      type: "permissions.update",
+      access: { mode: "full", web: true },
+    }),
+    /Confirme/,
+  );
+  await assert.rejects(
+    f.engine.execute({
+      type: "settings.update",
+      changes: { access: { mode: "full" } },
+    }),
+    /nao autorizado/,
+  );
+  const granted = await f.engine.execute({
+    type: "permissions.update",
+    access: { mode: "full", web: true },
+    confirmed: true,
+  });
+  assert.equal(granted.state.settings.access.web, true);
+  await f.engine.execute({
+    type: "tool.web.search",
+    query: "three.js documentation",
+  });
+  await f.engine.execute({
+    type: "permissions.update",
+    access: { mode: "restricted", web: false },
+  });
+  await assert.rejects(
+    f.engine.execute({ type: "tool.web.search", query: "test" }),
+    /desativado/,
+  );
+  assert.equal(await verifyAudit(await f.engine.read()), true);
+});
+test("voice and animation settings validate numeric ranges before saving", async () => {
+  const f = fixture();
+  await f.engine.execute({
+    type: "settings.update",
+    changes: {
+      voiceLang: "en-GB",
+      voiceRate: 0.8,
+      voicePitch: 0.85,
+      motionMode: "always",
+      intensity: 1.3,
+    },
+  });
+  const before = await f.engine.read();
+  for (const changes of [
+    { voiceRate: NaN },
+    { voicePitch: 5 },
+    { voiceVolume: -1 },
+    { intensity: "1" },
+    { voiceLang: "xx" },
+    { motionMode: "bypass" },
+  ])
+    await assert.rejects(
+      f.engine.execute({ type: "settings.update", changes }),
+      /invalida/,
+    );
+  assert.deepEqual(await f.engine.read(), before);
+});
+test("alpha1 saved workspaces receive new defaults without deleting data or rewriting audit", async () => {
+  const f = fixture();
+  await f.engine.execute({ type: "task.create", text: "Preserve me" });
+  f.tamper((state) => {
+    for (const key of [
+      "voiceURI",
+      "voiceLang",
+      "voiceRate",
+      "voicePitch",
+      "voiceVolume",
+      "motionMode",
+      "intensity",
+      "access",
+    ])
+      delete state.settings[key];
+  });
+  const old = f.read();
+  const loaded = await f.engine.read();
+  assert.equal(loaded.settings.voiceLang, "pt-BR");
+  assert.equal(loaded.settings.access.mode, "restricted");
+  assert.deepEqual(loaded.audit, old.audit);
+  assert.deepEqual(loaded.tasks, old.tasks);
+  assert.deepEqual(f.read(), old);
+});
 test("fresh workspace contains no invented tasks, memory, conversation or audit", async () => {
   const f = fixture();
   assert.deepEqual(await f.engine.read(), initialState());

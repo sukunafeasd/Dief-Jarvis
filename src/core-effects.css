@@ -1,0 +1,41 @@
+.phase-responding .core-phase,
+.phase-speaking .core-phase,
+.phase-listening .core-phase {
+  color: var(--accent);
+}
+.phase-received .command-form {
+  box-shadow:
+    inset 0 0 28px var(--accent-soft),
+    0 0 18px var(--accent-soft);
+}
+.phase-responding .core-identifier,
+.phase-speaking .core-identifier {
+  text-shadow: 0 0 18px var(--accent);
+}
+.phase-listening .phase-dot {
+  animation: phase-breathe 0.85s ease-in-out infinite alternate;
+}
+.phase-working .phase-dot {
+  animation: phase-breathe 0.35s ease-in-out infinite alternate;
+}
+.phase-speaking .phase-dot {
+  animation: phase-breathe 0.24s ease-in-out infinite alternate;
+}
+.core-identifier {
+  transition: text-shadow 0.4s ease;
+}
+@keyframes phase-breathe {
+  from {
+    opacity: 0.4;
+    box-shadow: 0 0 0 0 var(--accent-soft);
+  }
+  to {
+    opacity: 1;
+    box-shadow: 0 0 0 5px var(--accent-soft);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .phase-dot {
+    animation: none !important;
+  }
+}
