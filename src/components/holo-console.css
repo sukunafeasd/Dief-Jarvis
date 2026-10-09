@@ -116,6 +116,7 @@
 }
 .holo-console button,
 .holo-data {
+  min-width: 0;
   pointer-events: auto;
 }
 .holo-top {
@@ -220,9 +221,11 @@
 }
 .holo-data header > span {
   flex: 1;
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 .holo-data header button {
+  flex-shrink: 0;
   width: 28px;
   height: 28px;
   min-width: 28px;
@@ -249,12 +252,14 @@
   gap: 9px;
   font-size: 10px;
   color: var(--muted);
+  line-height: 1.5;
+}
+.holo-data footer time {
+  flex-shrink: 0;
 }
 .holo-data footer span {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .holo-pending {
   width: 100%;
@@ -322,6 +327,7 @@
     max-height: 180px;
   }
   .holo-data {
+    width: 230px;
     min-width: 190px;
     max-width: 230px;
     flex: 0 0 auto;
@@ -371,6 +377,7 @@
   }
   .holo-data {
     min-width: 0;
+    width: auto;
   }
   .app-shell.voice-only .core-heading {
     left: 18px;

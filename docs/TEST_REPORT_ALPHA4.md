@@ -71,6 +71,9 @@ producao ou tarefa do Painel Dief usado. Binarios alpha.4 nao foram publicados.
 17. CI Linux nao estabilizava a captura do canvas apos resize: dimensoes CSS
     independentes do buffer Three.js, teste explicito de estabilidade e leitura
     direta dos pixels. Evita scroll automatico da captura de elemento animado.
+18. Conteudo longo expandia cards alem da coluna e escondia o botao de fechar:
+    min-width/flex corrigidos, origem quebra linha e controles permanecem no card.
+    Regressao verifica os limites de cada controle e footer em quatro viewports.
 
 ## Nao verificado / impedimentos
 

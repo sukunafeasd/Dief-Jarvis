@@ -94,6 +94,14 @@ try {
         cards.y + cards.height <= controls.y + 1,
       `${name}: cards must fit without covering voice controls`,
     );
+    for (const card of await page.locator(".holo-data").all()) {
+      const bounds = await card.boundingBox();
+      const close = await card.locator("header button").boundingBox();
+      assert.ok(close.x >= bounds.x && close.x + close.width <= bounds.x + bounds.width + 1,
+        `${name}: close control stays inside its card`);
+      assert.equal(await card.locator("footer").evaluate((el) => el.scrollWidth > el.clientWidth + 1), false,
+        `${name}: data source stays inside its card`);
+    }
     const canvas = page.locator("canvas"), firstBounds = await canvas.boundingBox();
     await page.waitForTimeout(200);
     const settledBounds = await canvas.boundingBox();
