@@ -74,7 +74,7 @@ test("path guards reject escapes, device names, executable creation and root del
       root,
       {
         tool: "workspace.create",
-        args: { path: "run.ps1", content: "echo x" },
+        args: { path: "run.exe", content: "echo x" },
       },
       signal(),
     ),

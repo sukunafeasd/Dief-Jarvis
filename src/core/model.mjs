@@ -25,11 +25,13 @@ export const ACCESS_DEFAULTS = Object.freeze({
   web: false,
   files: false,
   desktop: false,
+  commands: false,
   admin: false,
 });
 export const VOICE_DEFAULTS = Object.freeze({
   voiceEngine: "neural",
-  voiceProfile: "pm_alex",
+  voiceProfile: "dief_pt",
+  voicePresetVersion: 1,
   presentation: "voice",
   voiceURI: "",
   voiceLang: "pt-BR",
@@ -49,6 +51,7 @@ export function initialState() {
     focus: false,
     settings: {
       name: "Cafe",
+      city: "",
       theme: "amber",
       motion: true,
       sound: false,
@@ -132,9 +135,18 @@ export function validateState(state) {
   }
   const options = { ...VOICE_DEFAULTS, ...state.settings };
   if (
+    state.settings.city !== undefined &&
+    (typeof state.settings.city !== "string" ||
+      state.settings.city.length > 100)
+  )
+    throw Error("Cidade invalida.");
+  if (
     !["voice", "workspace"].includes(options.presentation) ||
     !["system", "neural"].includes(options.voiceEngine) ||
-    !["pm_alex", "bm_george"].includes(options.voiceProfile) ||
+    !["dief_pt", "pm_alex", "pm_santa", "bm_george"].includes(
+      options.voiceProfile,
+    ) ||
+    options.voicePresetVersion !== 1 ||
     !["system", "always"].includes(options.motionMode) ||
     !["pt-BR", "en-GB"].includes(options.voiceLang) ||
     typeof options.voiceURI !== "string" ||
@@ -153,10 +165,10 @@ export function validateState(state) {
     options.intensity > 1.5
   )
     throw Error("Configuracao de voz ou movimento invalida.");
-  const access = state.settings.access || ACCESS_DEFAULTS;
+  const access = { ...ACCESS_DEFAULTS, ...state.settings.access };
   if (
     !["restricted", "supervised", "full"].includes(access.mode) ||
-    ["web", "files", "desktop", "admin"].some(
+    ["web", "files", "desktop", "commands", "admin"].some(
       (key) => typeof access[key] !== "boolean",
     )
   )

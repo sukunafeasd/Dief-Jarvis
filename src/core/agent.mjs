@@ -1,5 +1,6 @@
 import { localPlan, TOOLS, validatePlan } from "./tools.mjs";
 import { textValue } from "./model.mjs";
+import { approvalRequired } from "./execution-policy.mjs";
 
 export class AgentController {
   constructor(engine, options = {}) {
@@ -70,17 +71,24 @@ export class AgentController {
       throw Error("Esta ferramenta requer o EXE, nao o navegador.");
     if (tool.permission && !state.settings.access[tool.permission])
       throw Error(
-        `Autorize ${tool.permission === "files" ? "arquivos" : tool.permission === "desktop" ? "controle do PC" : "pesquisa web"} nos ajustes.`,
+        `Autorize ${tool.permission === "files" ? "arquivos" : tool.permission === "desktop" ? "controle do PC" : tool.permission === "commands" ? "comandos locais" : "pesquisa web"} nos ajustes.`,
       );
     if (tool.permission === "files" && !state.agent.workspace)
       throw Error("Selecione uma pasta autorizada antes de usar arquivos.");
+    if (
+      tool.permission === "commands" &&
+      (!state.agent.workspace || !state.settings.access.files)
+    )
+      throw Error(
+        "Comandos precisam de arquivos autorizados e uma pasta de trabalho.",
+      );
   }
   async run(id) {
     if (this.active) throw Error("Uma execucao ja esta ativa.");
     const operation = { id, abort: new AbortController() };
     this.active = operation;
     let started = false;
-    const deadline = Date.now() + 180000;
+    const deadline = Date.now() + 900000;
     try {
       const state = await this.engine.read();
       const run = state.runs.find((item) => item.id === id);
@@ -111,9 +119,8 @@ export class AgentController {
             await this.commit({ type: "agent.local", id, index });
           } else {
             if (
-              current.settings.access.mode !== "full" ||
-              TOOLS[step.tool].risk === "sensitive" ||
-              ["workspace.create", "workspace.trash"].includes(step.tool)
+              approvalRequired(step, current) ||
+              (await this.options.requiresApproval?.(step, current)) === true
             ) {
               if (!(await this.options.approve?.(step)))
                 throw Error("Operacao nao autorizada pelo operador.");
@@ -121,6 +128,14 @@ export class AgentController {
             operation.abort.signal.throwIfAborted();
             current = await this.engine.read();
             this.check(step, current);
+            if (
+              JSON.stringify(current.settings.access) !==
+                JSON.stringify(state.settings.access) ||
+              current.agent.autonomy !== state.agent.autonomy
+            )
+              throw Error(
+                "A politica mudou durante a execucao; crie um novo plano.",
+              );
             if (current.agent.workspace !== state.agent.workspace)
               throw Error("Pasta revogada ou alterada.");
             const output = await this.options.execute(
@@ -134,7 +149,13 @@ export class AgentController {
               id,
               index,
               status: "completed",
-              output: textValue(output, 20000),
+              output: textValue(
+                typeof output === "string" && output.length > 20000
+                  ? output.slice(0, 19800) +
+                      "\n[Observacao parcial: excedeu o tamanho do registro. Nao interprete como resultado completo.]"
+                  : output,
+                20000,
+              ),
             });
           }
         } catch (error) {

@@ -1,6 +1,6 @@
 # Dief Jarvis
 
-Assistente pessoal independente do Painel Dief. Versao **1.0.0-alpha.4**.
+Assistente pessoal independente do Painel Dief. Versao **1.0.0-alpha.5**.
 Esta e uma alpha, nao a versao final 1.0 nem controle irrestrito do computador.
 
 ## Disponivel
@@ -8,16 +8,24 @@ Esta e uma alpha, nao a versao final 1.0 nem controle irrestrito do computador.
 - Holograma Three.js full-bleed, paletas ambar/ciano, movimento e reacao ao audio.
 - Central por voz sem composer; menu recolhido; conversa escrita em outra vista.
 - Escuta local consentida, AudioWorklet + Vosk, nome Jarvis e comandos PT/EN.
-- Sintese neural local Kokoro: Alex em portugues e George em ingles britanico.
+- Sintese neural local Kokoro: perfil Dief/PT padrao (Alex 80% + Santa 20%),
+  Alex/Santa para comparar e George em ingles britanico. Fala por trechos com
+  preparo do proximo enquanto o atual toca, normalizacao de unidades/Markdown.
   Aproximacao de estilo, nao voz oficial/clone do ator do filme.
 - Preparacao obrigatoria no EXE para componentes/modelo/executor ausentes.
   Downloads consentidos, verificados por tamanho/SHA256 e com cancelamento.
 - Assistente Ollama com ferramentas tipadas, observacao/replanejamento, limites,
   permissao revogavel, confirmacoes sensiveis e historico de resultados reais.
-- Executor Windows UI Automation e navegador agente isolado, sem shell livre.
-- Arquivos em pasta escolhida; criar sem sobrescrever e excluir pela Lixeira.
+- Executor Windows UI Automation e navegador agente isolado com leitura real
+  de pesquisa e nova observacao apos alteracoes.
+- PowerShell separado: permissao propria, script integral aprovado no dialogo
+  nativo, processo sem sandbox, sem alterar ExecutionPolicy automaticamente.
+- Area de arquivos escolhida; disco inteiro exige modo completo + confirmacao.
+  Criar texto/codigo sem sobrescrever e excluir arquivos pela Lixeira.
 - Tarefas, memorias, medidas informadas, status local, clima Open-Meteo e noticias
-  de tecnologia Hacker News na tela, com origem. Sem sensores ficticios.
+  de tecnologia Hacker News na tela, com origem. Previsao de sete dias,
+  cidade configuravel, hardware/RAM reais e busca/conclusao de tarefas por ID.
+  Sem sensores ficticios.
 - SQLite protegido por safeStorage no EXE; IndexedDB no browser e auditoria local.
 
 ## Limites
@@ -25,8 +33,10 @@ Esta e uma alpha, nao a versao final 1.0 nem controle irrestrito do computador.
 A previa browser executa comandos locais e voz preparada, nao controla Windows
 nem consulta um provedor LLM. Ferramentas nativas exigem o EXE preparado.
 Nao pareamos Painel Dief/Mongo, celular, relogio, calendario ou e-mail.
-Nao ha shell arbitrario, bypass de UAC/CAPTCHA, acesso a senhas, todo o disco ou
-controle de jogos/apps sem UIA. O modo completo vale para ferramentas existentes.
+Nao ha bypass de UAC/CAPTCHA nem controle visual de jogos/apps sem UIA.
+Comandos aprovados podem acessar tudo que o processo tiver direito, inclusive
+fora da pasta de trabalho: o executor PowerShell NAO e uma sandbox. Nao ha
+garantia de seguranca ou controle universal. Elevacao continua manual pelo UAC.
 
 Escuta so inicia apos consentimento. Outra pessoa/TV pode acionar Jarvis; nao ha
 identificacao do falante. Durante a fala/processamento o reconhecimento pausa.
@@ -60,6 +70,7 @@ npm run prepare:voice
 npm run test:synthesis
 npm run test:voice
 npm run test:wake
+npm run test:voice-stream
 ```
 
 Os dois ultimos usam modelos reais e audio sintetico, nao microfone fisico.
@@ -79,7 +90,7 @@ helper. Instalar Ollama/modelo e autorizar microfone/PC sao operacoes separadas.
 Qwen3:1.7b e sugestao inicial; custos de RAM/disco dependem do modelo escolhido.
 Sem servicos pagos ou envio de audio para TTS em nuvem.
 
-**Nao publicar binarios alpha.4 antes de resolver redistribuicao GPL do EPhone e
+**Nao publicar binarios alpha.5 antes de resolver redistribuicao GPL do EPhone e
 validacao Windows real.** Scripts de pacote usam publish never; arquivos de
 build/teste ficam fora do Git. Instalador/downloads do Painel Dief nao mudaram.
 
@@ -91,19 +102,28 @@ build/teste ficam fora do Git. Instalador/downloads do Painel Dief nao mudaram.
 - Jarvis, hoje eu corri dois quilometros.
 - Jarvis, mostre status.
 - Jarvis, temperatura em Porto Alegre. (EXE + web autorizado)
+- Jarvis, previsao em Porto Alegre. (EXE + web autorizado)
+- Jarvis, consulte hardware. (EXE + controle PC autorizado)
+- Jarvis, busque tarefa dentista.
 - Jarvis, mostre noticias de tecnologia. (EXE + web autorizado)
 - Jarvis, liste janelas. (EXE + controles Windows autorizados)
 
 Execucoes permite revisar/autorizar planos. /agente na conversa prepara um plano,
 sem executar. No modo completo + autonomia, observacao e comandos locais podem
-seguir automaticamente; cliques, preenchimentos e alteracoes de arquivos pedem
-confirmacao nativa. Interrupcoes nao repetem efeitos concluidos.
+seguir automaticamente, inclusive cliques/preenchimentos e criacao de textos,
+apos autorizacao nativa por sessao. Lixeira, comandos PowerShell e controles
+identificados como alto risco mantem aprovacao. Classificacao por rotulos e
+melhor esforco, nao prova de seguranca. Interrupcoes nao repetem efeitos.
+Um plano aprovado pode continuar o objetivo original usando os resultados
+reais, sem executar novamente suas etapas. Limites operacionais: 24 ciclos,
+64 etapas e 15 minutos por atendimento; planos atomicos continuam ate 8 etapas.
 
 ## Documentacao
 
-- [Voz, autonomia, preparo, riscos e licencas](docs/VOZ-E-AUTONOMIA-ALPHA4.md)
+- [Arquitetura e referencias desta rodada](docs/AUTONOMIA-E-VOZ-ALPHA5.md)
+- [Voz, preparo e licencas da base alpha.4](docs/VOZ-E-AUTONOMIA-ALPHA4.md)
 - [Pesquisa de projetos publicos](docs/PESQUISA-AGENTES.md)
-- [Relatorio de testes alpha.4](docs/TEST_REPORT_ALPHA4.md)
+- [Relatorio de testes alpha.5](docs/TEST_REPORT_ALPHA5.md)
 
 src/core guarda estado e contratos; src/components guarda interface;
 desktop guarda brokers, drivers e SQLite; tests guarda verificacoes.

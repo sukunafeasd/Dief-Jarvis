@@ -16,7 +16,23 @@ const spec = (title, permission, native, fields, risk = "write") =>
   });
 export const TOOLS = Object.freeze({
   "task.create": spec("Criar tarefa", null, false, { text: text(500) }),
+  "task.list": spec("Consultar tarefas e seus IDs", null, false, {}, "read"),
+  "task.search": spec(
+    "Buscar tarefas e seus IDs",
+    null,
+    false,
+    { query: text(200) },
+    "read",
+  ),
+  "task.complete": spec("Concluir tarefa", null, false, { id: text(100) }),
   "memory.create": spec("Guardar memoria", null, false, { text: text(4000) }),
+  "memory.search": spec(
+    "Consultar memorias",
+    null,
+    false,
+    { query: text(200) },
+    "read",
+  ),
   "screen.open": spec(
     "Mostrar painel",
     null,
@@ -58,9 +74,15 @@ export const TOOLS = Object.freeze({
     path: text(240),
     content: text(16000),
   }),
-  "workspace.trash": spec("Enviar arquivo para a Lixeira", "files", true, {
-    path: text(240),
-  }),
+  "workspace.trash": spec(
+    "Enviar arquivo para a Lixeira",
+    "files",
+    true,
+    {
+      path: text(240),
+    },
+    "sensitive",
+  ),
   "web.search": spec(
     "Abrir pesquisa no navegador",
     "web",
@@ -83,14 +105,14 @@ export const TOOLS = Object.freeze({
     "web",
     true,
     { ref: text(80) },
-    "sensitive",
+    "interaction",
   ),
   "web.fill": spec(
     "Preencher campo da pagina",
     "web",
     true,
     { ref: text(80), text: text(2000) },
-    "sensitive",
+    "interaction",
   ),
   "desktop.list": spec("Listar janelas do PC", "desktop", true, {}, "read"),
   "desktop.observe": spec(
@@ -105,21 +127,21 @@ export const TOOLS = Object.freeze({
     "desktop",
     true,
     { window: text(50) },
-    "sensitive",
+    "interaction",
   ),
   "desktop.invoke": spec(
     "Acionar controle da janela",
     "desktop",
     true,
     { window: text(50), ref: text(100) },
-    "sensitive",
+    "interaction",
   ),
   "desktop.type": spec(
     "Preencher campo do aplicativo",
     "desktop",
     true,
     { window: text(50), ref: text(100), text: text(2000) },
-    "sensitive",
+    "interaction",
   ),
   "weather.current": spec(
     "Consultar tempo da cidade",
@@ -127,6 +149,27 @@ export const TOOLS = Object.freeze({
     true,
     { city: text(100) },
     "read",
+  ),
+  "weather.forecast": spec(
+    "Consultar previsao de sete dias",
+    "web",
+    true,
+    { city: text(100) },
+    "read",
+  ),
+  "system.hardware": spec(
+    "Consultar hardware e memoria reais",
+    "desktop",
+    true,
+    {},
+    "read",
+  ),
+  "command.execute": spec(
+    "Executar comando PowerShell com aprovacao",
+    "commands",
+    true,
+    { script: text(8000), directory: text(240) },
+    "sensitive",
   ),
   "news.headlines": spec(
     "Consultar manchetes de tecnologia / Hacker News",
@@ -214,6 +257,11 @@ export function localPlan(goal) {
       /^(?:crie|criar|adicione) (?:uma )?tarefa\s*:\s*(.+)$/is,
     );
     if (task) return { tool: "task.create", args: { text: task[1].trim() } };
+    const taskSearch = part.match(
+      /^(?:busque|procure) (?:a |uma )?tarefa\s*:?\s+(.+)$/i,
+    );
+    if (taskSearch)
+      return { tool: "task.search", args: { query: taskSearch[1].trim() } };
     const memory = part.match(/^lembre que\s+(.+)$/is);
     if (memory)
       return { tool: "memory.create", args: { text: memory[1].trim() } };
@@ -227,6 +275,27 @@ export function localPlan(goal) {
     if (command === "liste janelas") return { tool: "desktop.list", args: {} };
     const weather = part.match(/^(?:tempo|temperatura) (?:em|de)\s+(.+)$/i);
     if (weather) return { tool: "weather.current", args: { city: weather[1] } };
+    const forecast = part.match(
+      /^previs[aã]o (?:do tempo )?(?:em|de|para)\s+(.+)$/i,
+    );
+    if (forecast)
+      return { tool: "weather.forecast", args: { city: forecast[1] } };
+    const memorySearch = part.match(
+      /^(?:o que sabe|o que lembra|busque memorias) sobre\s+(.+)$/i,
+    );
+    if (memorySearch)
+      return { tool: "memory.search", args: { query: memorySearch[1] } };
+    if (/^(?:consulte|liste) (?:minhas |as )?tarefas$/.test(command))
+      return { tool: "task.list", args: {} };
+    const complete = part.match(/^conclua tarefa\s+(.+)$/i);
+    if (complete)
+      return { tool: "task.complete", args: { id: complete[1].trim() } };
+    if (
+      /^(?:mostre |consulte )?(?:hardware|memoria ram|configuracao do pc)$/.test(
+        command,
+      )
+    )
+      return { tool: "system.hardware", args: {} };
     if (/^(?:mostre |leia )?(?:as )?noticias(?: de tecnologia)?$/.test(command))
       return { tool: "news.headlines", args: {} };
     const distance = command.match(

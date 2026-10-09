@@ -188,6 +188,28 @@ class WebSession {
   describe(ref) {
     return this.act("describe", { ref });
   }
+  async actAndObserve(operation, args, signal) {
+    signal.throwIfAborted();
+    const action = await this.act(operation, args);
+    let after;
+    try {
+      if (this.window?.webContents.isLoading())
+        await new Promise((resolve) => {
+          const web = this.window.webContents,
+            finish = () => {
+              clearTimeout(timer);
+              web.off("did-stop-loading", finish);
+              resolve();
+            };
+          const timer = setTimeout(finish, 5000);
+          web.once("did-stop-loading", finish);
+        });
+      after = JSON.parse(await this.observe());
+    } catch (error) {
+      after = { observationError: error.message, verified: false };
+    }
+    return JSON.stringify({ action, after });
+  }
   close() {
     if (this.window && !this.window.isDestroyed()) this.window.close();
     this.window = null;

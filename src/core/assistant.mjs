@@ -1,16 +1,23 @@
 import { localPlan, TOOLS } from "./tools.mjs";
-import { textValue } from "./model.mjs";
-export function mayAutoExecute(plan, state) {
-  return (
-    plan.steps.every((step) => !TOOLS[step.tool].native) ||
-    (state.agent.autonomy &&
-      state.settings.access.mode === "full" &&
-      plan.steps.every(
-        (step) =>
-          TOOLS[step.tool].risk !== "sensitive" &&
-          !["workspace.create", "workspace.trash"].includes(step.tool),
-      ))
-  );
+import { textValue, canonical } from "./model.mjs";
+import { autoExecute as mayAutoExecute } from "./execution-policy.mjs";
+export { mayAutoExecute };
+function localSummary(observation) {
+  if (["task.list", "task.search"].includes(observation.tool)) {
+    const result = JSON.parse(observation.output);
+    return `Encontrei ${result.total} tarefa(s). ${
+      result.tasks
+        .slice(0, 3)
+        .map((task) => `${task.text}: ${task.done ? "concluida" : "aberta"}`)
+        .join("; ") || "Nenhuma tarefa encontrada."
+    }`;
+  }
+  if (observation.tool === "task.complete")
+    return `Conclui a tarefa: ${JSON.parse(observation.output).text}.`;
+  return observation.output.length <= 3500
+    ? observation.output
+    : observation.output.slice(0, 3400) +
+        "\n[Resposta parcial. O resultado completo esta em Execucoes.]";
 }
 export class AssistantSession {
   constructor(engine, agent, options = {}) {
@@ -19,7 +26,18 @@ export class AssistantSession {
     this.options = options;
     this.active = null;
   }
-  async respond(content) {
+  async resume(id) {
+    const state = await this.engine.read();
+    const run = state.runs.find((item) => item.id === id);
+    if (run?.status !== "completed")
+      throw Error("Conclua o plano antes de continuar.");
+    return this.respond(run.goal, {
+      continuation: true,
+      completedSteps: run.steps,
+      observations: run.steps.map(({ tool, output }) => ({ tool, output })),
+    });
+  }
+  async respond(content, options = {}) {
     textValue(content);
     if (this.active || this.agent.active)
       throw Error("Ja estou atendendo uma tarefa. Interrompa ou aguarde.");
@@ -27,7 +45,7 @@ export class AssistantSession {
     this.active = abort;
     const timeout = setTimeout(
       () => this.stop(),
-      this.options.timeoutMs || 180000,
+      this.options.timeoutMs || 900000,
     );
     try {
       if (/^(?:jarvis|oi|ola)[!.?\s]*$/i.test(content)) {
@@ -41,15 +59,23 @@ export class AssistantSession {
               : `Estou aqui, ${state.settings.name}. Pode falar.`,
         });
       }
-      const observations = [];
+      const observations = [...(options.observations || [])];
+      const completedEffects = new Set(
+        (options.completedSteps || [])
+          .filter((step) => TOOLS[step.tool].risk !== "read")
+          .map(({ tool, args }) => canonical({ tool, args })),
+      );
       let steps = 0;
-      for (let round = 0; round < 5; round++) {
+      for (let round = 0; round < 24; round++) {
         abort.signal.throwIfAborted();
         const state = await this.engine.read();
         let decision;
         if (state.agent.provider === "local") {
           if (observations.length)
-            decision = { summary: observations.at(-1).output, steps: [] };
+            decision = {
+              summary: localSummary(observations.at(-1)),
+              steps: [],
+            };
           else {
             try {
               decision = localPlan(content);
@@ -69,11 +95,24 @@ export class AssistantSession {
             type: "assistant.record",
             content,
             reply: decision.summary,
+            continuation: options.continuation === true,
           });
-        if (steps + decision.steps.length > 8)
+        if (steps + decision.steps.length > 64)
           throw Error(
-            "Limite de 8 passos atingido; confira o historico antes de continuar.",
+            "Atendimento longo: confira as 64 etapas registradas antes de continuar.",
           );
+        const proposedEffects = new Set(completedEffects);
+        for (const step of decision.steps) {
+          if (
+            TOOLS[step.tool].risk !== "read" &&
+            proposedEffects.has(canonical(step))
+          )
+            throw Error(
+              "O modelo tentou repetir uma alteracao ja concluida. Parei para evitar duplicacao.",
+            );
+          if (TOOLS[step.tool].risk !== "read")
+            proposedEffects.add(canonical(step));
+        }
         const prepared = await this.agent.prepare(content, decision);
         const run = prepared.state.runs[0];
         if (abort.signal.aborted) {
@@ -86,6 +125,7 @@ export class AssistantSession {
             content,
             reply:
               "Preparei um plano. Ele precisa da sua autorizacao em Execucoes; nenhuma etapa desse plano foi executada.",
+            continuation: options.continuation === true,
           });
         }
         const done = await this.agent.run(run.id);
@@ -98,6 +138,9 @@ export class AssistantSession {
             output: step.output,
           })),
         );
+        for (const step of decision.steps)
+          if (TOOLS[step.tool].risk !== "read")
+            completedEffects.add(canonical(step));
         steps += decision.steps.length;
       }
       throw Error(
@@ -111,6 +154,7 @@ export class AssistantSession {
         type: "assistant.record",
         content,
         reply,
+        continuation: options.continuation === true,
       });
     } finally {
       clearTimeout(timeout);

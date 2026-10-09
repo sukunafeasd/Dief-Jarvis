@@ -1,3 +1,4 @@
+import { speechChunks } from "./core/speech.mjs";
 export class VoiceChannel {
   constructor({
     onTranscript,
@@ -85,6 +86,8 @@ export class VoiceChannel {
     const recognition = this.recognition;
     this.recognition = null;
     this.utterance = null;
+    this.releasePlayback?.();
+    this.releasePlayback = null;
     this.audio?.pause();
     this.audio = null;
     this.audioContext?.close().catch(() => {});
@@ -119,8 +122,7 @@ export class VoiceChannel {
       options.voiceEngine === "neural" &&
       (window.jarvisDesktop?.voice || window.jarvisPreviewVoice)
     ) {
-      this.speakNeural(text, options);
-      return;
+      return this.speakNeural(text, options);
     }
     if (this.closed || !("speechSynthesis" in window)) {
       this.onPhase("idle");
@@ -195,65 +197,42 @@ export class VoiceChannel {
     try {
       await this.cancelling;
       if (!current()) return;
+      const chunks = speechChunks(text);
       this.preparing = utterance;
-      const wav = window.jarvisDesktop?.voice
-        ? await window.jarvisDesktop.voice({
-            op: "speak",
-            text,
-            profile: options.voiceProfile,
-            speed: options.voiceRate,
-          })
-        : await window.jarvisPreviewVoice.speak(
-            text,
-            options.voiceProfile,
-            options.voiceRate,
-          );
+      const synthesize = async (part) => {
+        if (!current()) return {};
+        try {
+          const wav = window.jarvisDesktop?.voice
+            ? await window.jarvisDesktop.voice({
+                op: "speak",
+                text: part,
+                profile: options.voiceProfile,
+                speed: options.voiceRate,
+              })
+            : await window.jarvisPreviewVoice.speak(
+                part,
+                options.voiceProfile,
+                options.voiceRate,
+              );
+          return { wav };
+        } catch (error) {
+          return { error };
+        }
+      };
+      let upcoming = synthesize(chunks[0]);
+      for (let index = 0; index < chunks.length; index++) {
+        const part = await upcoming;
+        if (!current()) return;
+        if (part.error) throw part.error;
+        // At most one sentence is prepared ahead, while the current one plays.
+        upcoming =
+          index + 1 < chunks.length ? synthesize(chunks[index + 1]) : null;
+        await this.playNeuralPart(part.wav, options, current);
+        if (!current()) return;
+      }
       if (this.preparing === utterance) this.preparing = null;
-      if (!current()) return;
-      this.audioUrl = URL.createObjectURL(
-        new Blob([wav], { type: "audio/wav" }),
-      );
-      const audio = new Audio(this.audioUrl);
-      this.audio = audio;
-      audio.volume = options.voiceVolume ?? 0.85;
-      const context = new (window.AudioContext || window.webkitAudioContext)();
-      this.audioContext = context;
-      const source = context.createMediaElementSource(audio),
-        analyser = context.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
-      analyser.connect(context.destination);
-      const samples = new Float32Array(analyser.fftSize);
-      const meter = () => {
-        if (!current() || audio.paused) return;
-        analyser.getFloatTimeDomainData(samples);
-        let sum = 0;
-        for (const sample of samples) sum += sample * sample;
-        this.onLevel(Math.min(1, Math.sqrt(sum / samples.length) * 5));
-        setTimeout(meter, 80);
-      };
-      audio.onplay = () => {
-        if (current()) {
-          this.onPhase("speaking");
-          meter();
-        }
-      };
-      audio.onended = () => {
-        if (current()) {
-          this.stop();
-          this.onSpokenEnd();
-        }
-      };
-      audio.onerror = () => {
-        if (current()) {
-          this.stop();
-          this.onError(
-            "Nao consegui reproduzir a voz; a resposta permanece no texto.",
-          );
-        }
-      };
-      await context.resume();
-      await audio.play();
+      this.stop();
+      this.onSpokenEnd();
     } catch (error) {
       if (current()) {
         this.stop();
@@ -262,6 +241,74 @@ export class VoiceChannel {
         );
       }
     }
+  }
+  async playNeuralPart(wav, options, current) {
+    const audioUrl = URL.createObjectURL(
+        new Blob([wav], { type: "audio/wav" }),
+      ),
+      audio = new Audio(audioUrl);
+    this.audioUrl = audioUrl;
+    this.audio = audio;
+    audio.volume = options.voiceVolume ?? 0.85;
+    const context = (this.audioContext ||= new (
+      window.AudioContext || window.webkitAudioContext
+    )());
+    const source = context.createMediaElementSource(audio),
+      analyser = context.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+    analyser.connect(context.destination);
+    const samples = new Float32Array(analyser.fftSize);
+    await new Promise((resolve, reject) => {
+      let settled = false,
+        timer;
+      const finish = (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        audio.onplay = audio.onended = audio.onerror = null;
+        audio.pause();
+        source.disconnect();
+        analyser.disconnect();
+        URL.revokeObjectURL(audioUrl);
+        if (this.audio === audio) {
+          this.audio = null;
+          this.audioUrl = null;
+        }
+        if (this.releasePlayback === cancel) this.releasePlayback = null;
+        if (current()) {
+          this.onLevel(0);
+          this.onPhase("working");
+        }
+        error ? reject(error) : resolve();
+      };
+      const cancel = () => finish();
+      this.releasePlayback = cancel;
+      const meter = () => {
+        if (!current() || settled || audio.paused) return;
+        analyser.getFloatTimeDomainData(samples);
+        let sum = 0;
+        for (const sample of samples) sum += sample * sample;
+        this.onLevel(Math.min(1, Math.sqrt(sum / samples.length) * 5));
+        timer = setTimeout(meter, 80);
+      };
+      audio.onplay = () => {
+        if (current()) {
+          this.onPhase("speaking");
+          meter();
+        }
+      };
+      audio.onended = () => finish();
+      audio.onerror = () =>
+        finish(Error("Nao consegui reproduzir este trecho de voz."));
+      context
+        .resume()
+        .then(() => {
+          if (!current()) return finish();
+          return audio.play();
+        })
+        .catch(finish);
+    });
   }
   dispose() {
     this.closed = true;

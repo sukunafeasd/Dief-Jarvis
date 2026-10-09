@@ -390,8 +390,13 @@ test("agent prepare takes its lock before awaiting storage", async () => {
 });
 test("stopping at the end of preparation cancels the pending plan without effects", async () => {
   const { engine, agent } = fixture();
-  const assistant = new AssistantSession(engine, agent), prepare = agent.prepare.bind(agent);
-  agent.prepare = async (...args) => { const result = await prepare(...args); assistant.stop(); return result; };
+  const assistant = new AssistantSession(engine, agent),
+    prepare = agent.prepare.bind(agent);
+  agent.prepare = async (...args) => {
+    const result = await prepare(...args);
+    assistant.stop();
+    return result;
+  };
   const result = await assistant.respond("crie uma tarefa: nao executar");
   assert.equal(result.state.tasks.length, 0);
   assert.equal(result.state.runs[0].status, "cancelled");
@@ -436,7 +441,9 @@ test("assistant reobserves completed native results but sensitive actions await 
     summary: "Click",
     steps: [{ tool: "web.click", args: { ref: "x" } }],
   };
-  assert.equal(mayAutoExecute(plan, result.state), false);
+  assert.equal(mayAutoExecute(plan, result.state), true);
+  await engine.execute({ type: "agent.autonomy", value: false });
+  assert.equal(mayAutoExecute(plan, await engine.read()), false);
   const supervised = new AssistantSession(engine, agent, {
     decide: async () => plan,
   });

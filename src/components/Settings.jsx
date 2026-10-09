@@ -73,6 +73,7 @@ export default function Settings({
 }) {
   const [section, setSection] = useState("display");
   const [name, setName] = useState(state.settings.name);
+  const [city, setCity] = useState(state.settings.city || "");
   const [query, setQuery] = useState("");
   const [voices, setVoices] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -80,6 +81,7 @@ export default function Settings({
   const access = { ...ACCESS_DEFAULTS, ...options.access };
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   useEffect(() => setName(state.settings.name), [state.settings.name]);
+  useEffect(() => setCity(state.settings.city || ""), [state.settings.city]);
   useEffect(() => {
     if (!window.speechSynthesis) return;
     const load = () => setVoices(speechSynthesis.getVoices());
@@ -92,7 +94,7 @@ export default function Settings({
     const next = { ...access, ...changes };
     const expands =
       (next.mode === "full" && access.mode !== "full") ||
-      ["web", "files", "desktop", "admin"].some(
+      ["web", "files", "desktop", "commands", "admin"].some(
         (key) => next[key] && !access[key],
       );
     const run = () =>
@@ -169,6 +171,31 @@ export default function Settings({
                   className="icon-button"
                   aria-label="Salvar nome"
                   title="Salvar nome"
+                >
+                  <Check size={18} />
+                </button>
+              </div>
+            </form>
+            <form
+              className="setting-row"
+              onSubmit={(event) => {
+                event.preventDefault();
+                save({ city });
+              }}
+            >
+              <label htmlFor="owner-city">Cidade para clima</label>
+              <div className="inline-input">
+                <input
+                  id="owner-city"
+                  maxLength={100}
+                  value={city}
+                  onChange={(event) => setCity(event.target.value)}
+                  placeholder="Cidade, estado"
+                />
+                <button
+                  className="icon-button"
+                  aria-label="Salvar cidade"
+                  title="Salvar cidade"
                 >
                   <Check size={18} />
                 </button>
@@ -265,7 +292,11 @@ export default function Settings({
                     })
                   }
                 >
+                  <option value="dief_pt">
+                    Dief Jarvis / portugues · padrao
+                  </option>
                   <option value="pm_alex">Alex / portugues masculino</option>
+                  <option value="pm_santa">Santa / portugues masculino</option>
                   <option value="bm_george">
                     George / britanico masculino
                   </option>
@@ -282,7 +313,7 @@ export default function Settings({
                     voiceLang: event.target.value,
                     voiceURI: "",
                     voiceProfile:
-                      event.target.value === "en-GB" ? "bm_george" : "pm_alex",
+                      event.target.value === "en-GB" ? "bm_george" : "dief_pt",
                   })
                 }
               >
@@ -374,8 +405,9 @@ export default function Settings({
               <ShieldCheck size={18} />
               <p>
                 Autorizacoes do assistente. Acesso total nao equivale a
-                administrador nem ativa ferramentas inexistentes. Segredos, UAC
-                e confirmacoes de alto risco continuam protegidos.
+                administrador nem ativa ferramentas inexistentes. UAC e campos
+                protegidos na automacao visual sao manuais. Comandos aprovados
+                nao sao executados em sandbox.
               </p>
             </div>
             <label className="setting-row">
@@ -387,12 +419,19 @@ export default function Settings({
                   permit({
                     mode: event.target.value,
                     ...(event.target.value === "full"
-                      ? { web: true, files: true, desktop: true, admin: true }
+                      ? {
+                          web: true,
+                          files: true,
+                          desktop: true,
+                          commands: true,
+                          admin: true,
+                        }
                       : event.target.value === "restricted"
                         ? {
                             web: false,
                             files: false,
                             desktop: false,
+                            commands: false,
                             admin: false,
                           }
                         : {}),
@@ -416,7 +455,7 @@ export default function Settings({
                 "files",
                 "Ler, criar textos e usar a Lixeira",
                 platform.capabilities?.files
-                  ? "Somente na pasta escolhida em Execucoes"
+                  ? "Area escolhida em Execucoes; disco inteiro exige confirmacao"
                   : "Disponivel no EXE",
               ],
               [
@@ -425,6 +464,11 @@ export default function Settings({
                 platform.capabilities?.desktop
                   ? "UI Automation / controles acessiveis; campos protegidos bloqueados"
                   : "Somente no EXE Windows",
+              ],
+              [
+                "commands",
+                "Executar comandos locais",
+                "PowerShell no EXE Windows; script completo exige aprovacao",
               ],
               [
                 "admin",
@@ -456,9 +500,9 @@ export default function Settings({
             </button>
             <label className="setting-row">
               <span>
-                Autonomia de leitura e tarefas locais
+                Autonomia de operacoes rotineiras
                 <small>
-                  Cliques, escrita e alteracoes sensiveis mantem confirmacao
+                  Autorizacao por sessao; alto risco mantem confirmacao
                 </small>
               </span>
               <input

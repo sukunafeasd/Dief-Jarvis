@@ -1,26 +1,40 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import fs from "node:fs/promises";
 import path from "node:path";
+import { speechChunks } from "../src/core/speech.mjs";
+export { speechChunks };
 
 export const VOICE_PROFILES = Object.freeze({
+  dief_pt: {
+    name: "Dief / Portugues",
+    language: "pt-BR",
+    locale: "pt-BR",
+    blend: { pm_alex: 0.8, pm_santa: 0.2 },
+  },
   pm_alex: { name: "Alex / Portugues", language: "pt-BR", locale: "pt-BR" },
+  pm_santa: { name: "Santa / Portugues", language: "pt-BR", locale: "pt-BR" },
   bm_george: { name: "George / British", language: "en", locale: "en-GB" },
 });
-export function speechChunks(text, limit = 140) {
-  if (typeof text !== "string" || !text.trim() || text.length > 4000)
-    throw Error("Texto de voz invalido.");
-  const chunks = [];
-  let chunk = "";
-  for (const word of text.trim().split(/\s+/)) {
-    if (word.length > limit) throw Error("Palavra longa demais para sintese.");
-    if (chunk.length + word.length + 1 > limit) {
-      chunks.push(chunk);
-      chunk = "";
-    }
-    chunk += (chunk ? " " : "") + word;
-  }
-  if (chunk) chunks.push(chunk);
-  return chunks;
+export function blendStyles(parts) {
+  if (
+    !parts.length ||
+    !parts.every(
+      ({ values, weight }) =>
+        values instanceof Float32Array &&
+        values.length === 510 * 256 &&
+        Number.isFinite(weight) &&
+        weight >= 0,
+    ) ||
+    Math.abs(parts.reduce((sum, part) => sum + part.weight, 0) - 1) > 0.0001
+  )
+    throw Error("Mistura de voz invalida.");
+  const result = new Float32Array(parts[0].values.length);
+  for (const { values, weight } of parts)
+    for (let index = 0; index < result.length; index++)
+      result[index] += values[index] * weight;
+  if (!result.every(Number.isFinite))
+    throw Error("Perfil contem valores invalidos.");
+  return result;
 }
 export function wavEncode(samples, rate = 24000) {
   const data = Buffer.alloc(44 + samples.length * 2);
@@ -73,7 +87,7 @@ export class NeuralVoice {
     });
     return this.ready;
   }
-  speak(text, profile = "pm_alex", speed = 0.94) {
+  speak(text, profile = "dief_pt", speed = 0.94) {
     if (
       !Object.hasOwn(VOICE_PROFILES, profile) ||
       !Number.isFinite(speed) ||
@@ -84,15 +98,24 @@ export class NeuralVoice {
     const chunks = speechChunks(text);
     const task = this.queue.then(async () => {
       const { model, tokenizer, Tensor, phones } = await this.load();
-      const bytes = await fs.readFile(
-        path.join(this.root, "kokoro", "voices", profile + ".bin"),
-      );
-      const styles = new Float32Array(
-        bytes.buffer.slice(
-          bytes.byteOffset,
-          bytes.byteOffset + bytes.byteLength,
-        ),
-      );
+      const parts = [];
+      for (const [name, weight] of Object.entries(
+        VOICE_PROFILES[profile].blend || { [profile]: 1 },
+      )) {
+        const bytes = await fs.readFile(
+          path.join(this.root, "kokoro", "voices", name + ".bin"),
+        );
+        parts.push({
+          weight,
+          values: new Float32Array(
+            bytes.buffer.slice(
+              bytes.byteOffset,
+              bytes.byteOffset + bytes.byteLength,
+            ),
+          ),
+        });
+      }
+      const styles = blendStyles(parts);
       const audio = [];
       let length = 0;
       for (const chunk of chunks) {

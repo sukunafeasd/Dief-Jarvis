@@ -81,9 +81,13 @@ export async function workspaceTool(root, step, signal, trashItem) {
   if (step.args.path === ".")
     throw Error("Esta operacao exige um arquivo, nao a pasta raiz.");
   if (step.tool === "workspace.create") {
-    if (!/\.(txt|md|json|csv)$/i.test(target))
+    if (
+      !/\.(txt|md|json|csv|html|css|js|mjs|ts|tsx|jsx|py|ps1|cs|xml|yaml|yml|toml)$/i.test(
+        target,
+      )
+    )
       throw Error(
-        "Criacao limitada a .txt, .md, .json ou .csv; executaveis e scripts nao sao aceitos.",
+        "Crie um arquivo de texto ou codigo suportado. Binarios nao sao criados nem executados.",
       );
     // Exclusive creation never overwrites an existing file, including a link raced into place.
     const file = await fs.open(

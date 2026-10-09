@@ -113,7 +113,41 @@ app
     );
     const { publicUrl } = await loadDesktop("web-policy.mjs");
     const { desktopTool } = await loadDesktop("desktop-service.mjs");
-    const { currentWeather } = await loadDesktop("weather.mjs");
+    const { currentWeather, weatherForecast } =
+      await loadDesktop("weather.mjs");
+    const { hardwareStatus } = await loadDesktop("hardware.mjs");
+    const { commandTool, powerShellSource } = await loadDesktop(
+      "command-service.mjs",
+    );
+    const { criticalInteraction } = await import(
+      pathToFileURL(
+        path.join(app.getAppPath(), "src/core/execution-policy.mjs"),
+      ).href
+    );
+    let autonomyAuthorized = false,
+      autonomyConsent = null;
+    const authorizeAutonomy = async () => {
+      if (autonomyAuthorized) return;
+      autonomyConsent ||= dialog
+        .showMessageBox(window, {
+          type: "warning",
+          buttons: ["Autorizar esta sessao", "Cancelar"],
+          defaultId: 1,
+          cancelId: 1,
+          message: "Autorizar operacoes autonomas nesta sessao?",
+          detail:
+            "No modo acesso total, o Jarvis podera navegar, clicar, preencher controles e criar arquivos de texto na area autorizada para cumprir seus pedidos, sem confirmar cada operacao rotineira. Pode haver erros de interpretacao. Excluir arquivos, compras, envios, publicacoes e outros controles reconhecidos como alto risco pedem confirmacao. Qualquer voz audivel pode acionar Jarvis; nao ha identificacao do falante. Parar interrompe o atendimento e voce pode revogar os acessos. UAC e senhas continuam manuais.",
+        })
+        .then((result) => {
+          if (result.response !== 0)
+            throw Error("Autonomia desta sessao nao autorizada.");
+          autonomyAuthorized = true;
+        })
+        .finally(() => {
+          autonomyConsent = null;
+        });
+      await autonomyConsent;
+    };
     const { techHeadlines } = await loadDesktop("news.mjs");
     const { ComponentInstaller, runtimeRoot } =
       await loadDesktop("components.mjs");
@@ -153,9 +187,49 @@ app
           window.webContents.send("jarvis:state", state);
       },
       planner: ollamaPlan,
+      requiresApproval: async (step, state) => {
+        if (
+          state.agent.autonomy &&
+          !autonomyAuthorized &&
+          TOOLS[step.tool].risk !== "read"
+        )
+          return true;
+        if (TOOLS[step.tool].risk !== "interaction") return false;
+        if (["web.click", "web.fill"].includes(step.tool))
+          return criticalInteraction(
+            await browserAgent.describe(step.args.ref),
+          );
+        const observed = JSON.parse(
+          await desktopTool(
+            { tool: "desktop.observe", args: { window: step.args.window } },
+            nativeHelper,
+            AbortSignal.timeout(20000),
+          ),
+        );
+        const control = step.args.ref
+          ? observed.controls?.find((item) => item.ref === step.args.ref)
+          : { name: observed.title };
+        if (!control) throw Error("Controle mudou; observe novamente.");
+        return criticalInteraction(control);
+      },
       approve: async (step) => {
         if (!window || window.isDestroyed()) return false;
         let detail = JSON.stringify(step.args, null, 2);
+        if (step.tool === "command.execute") {
+          const folder = await checkedPath(
+            (await engine.read()).agent.workspace,
+            step.args.directory,
+          );
+          detail = `PowerShell SEM sandbox, com os privilegios atuais do aplicativo. Pode modificar arquivos fora da pasta de trabalho e acessar a rede. Confira o script inteiro; cancelar depois nao desfaz efeitos.\nPasta de trabalho: ${folder}\n\n${powerShellSource(step.args.script)}`;
+        }
+        if (step.tool.startsWith("workspace.")) {
+          const target = await checkedPath(
+            (await engine.read()).agent.workspace,
+            step.args.path,
+            step.tool === "workspace.create",
+          );
+          detail = `Destino real: ${target}\n\n${detail}`;
+        }
         if (["web.click", "web.fill"].includes(step.tool))
           detail =
             (await browserAgent.describe(step.args.ref)) + "\n\n" + detail;
@@ -199,15 +273,53 @@ app
       },
       execute: async (step, state, signal) => {
         signal.throwIfAborted();
+        if (step.tool === "command.execute")
+          return commandTool(state.agent.workspace, step, signal);
         if (step.tool === "web.open")
           return browserAgent.open(step.args.url, signal);
         if (step.tool === "web.observe") return browserAgent.observe();
         if (step.tool === "web.click")
-          return browserAgent.act("click", step.args);
+          return browserAgent.actAndObserve("click", step.args, signal);
         if (step.tool === "web.fill")
-          return browserAgent.act("fill", step.args);
-        if (step.tool.startsWith("desktop."))
-          return desktopTool(step, nativeHelper, signal);
+          return browserAgent.actAndObserve("fill", step.args, signal);
+        if (step.tool.startsWith("desktop.")) {
+          const output = await desktopTool(step, nativeHelper, signal);
+          if (
+            ["desktop.invoke", "desktop.type", "desktop.focus"].includes(
+              step.tool,
+            )
+          ) {
+            let after;
+            try {
+              after = JSON.parse(
+                await desktopTool(
+                  {
+                    tool: "desktop.observe",
+                    args: { window: step.args.window },
+                  },
+                  nativeHelper,
+                  signal,
+                ),
+              );
+            } catch (error) {
+              after = { observationError: error.message, verified: false };
+            }
+            return JSON.stringify({ action: output, after });
+          }
+          return output;
+        }
+        if (step.tool === "system.hardware") {
+          const hardware = hardwareStatus();
+          const card = await engine.execute({
+            type: "screen.card",
+            title: "Memoria RAM / sistema",
+            value: String(hardware.memory.usedPercent),
+            unit: "%",
+            source: hardware.source,
+          });
+          window.webContents.send("jarvis:state", card.state);
+          return JSON.stringify(hardware);
+        }
         if (step.tool === "news.headlines") {
           const headlines = await techHeadlines(signal);
           for (const item of headlines) {
@@ -237,10 +349,27 @@ app
           return JSON.stringify(weather);
         }
         if (step.tool === "web.search") {
-          await shell.openExternal(
+          return browserAgent.open(
             `https://www.bing.com/search?q=${encodeURIComponent(step.args.query)}`,
+            signal,
           );
-          return "Pesquisa aberta no navegador externo. O Jarvis nao leu nem verificou os resultados.";
+        }
+        if (step.tool === "weather.forecast") {
+          const forecast = await weatherForecast(step.args.city, signal);
+          const card = await engine.execute({
+            type: "screen.card",
+            title: `Previsao / ${forecast.title}`.slice(0, 100),
+            value: forecast.days
+              .map(
+                (day) =>
+                  `${day.date}: ${day.minC} a ${day.maxC} C / chuva ${day.precipitationChance}%`,
+              )
+              .join("\n"),
+            unit: "",
+            source: `Open-Meteo / ${forecast.fetchedAt} / ${forecast.source}`,
+          });
+          window.webContents.send("jarvis:state", card.state);
+          return JSON.stringify(forecast);
         }
         return workspaceTool(state.agent.workspace, step, signal, (target) =>
           shell.trashItem(target),
@@ -371,7 +500,7 @@ app
         const next = action.access || {};
         const expands =
           (next.mode === "full" && current.mode !== "full") ||
-          ["web", "files", "desktop", "admin"].some(
+          ["web", "files", "desktop", "commands", "admin"].some(
             (key) => next[key] && !current[key],
           );
         if (expands) {
@@ -383,12 +512,19 @@ app
             buttons: ["Autorizar", "Cancelar"],
             message: "Confirmar ampliacao da politica de acesso?",
             detail:
-              "Web inclui navegador isolado. PC usa controles UI Automation das janelas; campos secretos, terminais e UAC nao podem ser controlados. Arquivos ficam na pasta escolhida. Cliques, preenchimentos, escrita e Lixeira mantem confirmacao. Administrador precisa de uma solicitacao separada ao UAC. Nenhuma protecao do Windows e desativada.",
+              "Web inclui navegador agente que le resultados. PC usa controles UI Automation das janelas. Arquivos ficam na area escolhida, que pode incluir um disco inteiro se voce confirmar. Autonomia de operacoes rotineiras e autorizada separadamente por sessao. Alto risco, senhas e UAC mantem confirmacao/manual. Nenhuma protecao do Windows e desativada.",
           });
           if (result.response !== 0)
             throw Error("Autorizacao cancelada. Acesso anterior preservado.");
         }
         action = { ...action, confirmed: true };
+        if (
+          (next.mode !== undefined && next.mode !== "full") ||
+          ["web", "files", "desktop", "commands", "admin"].some(
+            (key) => next[key] === false,
+          )
+        )
+          autonomyAuthorized = false;
       }
       return engine.execute(action);
     });
@@ -400,17 +536,9 @@ app
         if (assistant.active || agent.active)
           throw Error("Interrompa a tarefa antes de alterar a autonomia.");
         if (request.value === true) {
-          const result = await dialog.showMessageBox(window, {
-            type: "warning",
-            buttons: ["Autorizar autonomia de leitura", "Cancelar"],
-            defaultId: 1,
-            cancelId: 1,
-            message: "Autorizar observacao e replanejamento autonomos?",
-            detail:
-              "Com acesso total, o Jarvis podera ler paginas e janelas autorizadas, consultar clima e usar comandos locais para cumprir seus pedidos, com ate 8 passos. Paginas/documentos sao dados, nao ordens. Cliques e alteracoes sensiveis ainda pedem confirmacao nativa. Qualquer voz audivel pode acionar a escuta; nao ha verificacao de identidade do falante.",
-          });
-          if (result.response !== 0) throw Error("Autonomia nao autorizada.");
+          await authorizeAutonomy();
         }
+        if (request.value === false) autonomyAuthorized = false;
         return engine.execute({
           type: "agent.autonomy",
           value: request.value,
@@ -476,7 +604,19 @@ app
       )
         throw Error("Assistente ocupado ou preparacao inicial incompleta.");
       if (request.op === "plan") return agent.plan(request.goal);
-      if (request.op === "run") return agent.run(request.id);
+      if (request.op === "run") {
+        const state = await engine.read();
+        if (state.agent.autonomy && state.settings.access.mode === "full")
+          await authorizeAutonomy();
+        const result = await agent.run(request.id);
+        if (
+          result.state.agent.autonomy &&
+          result.state.runs.find((item) => item.id === request.id)?.status ===
+            "completed"
+        )
+          return assistant.resume(request.id);
+        return result;
+      }
       if (request.op === "cancel") return agent.cancel(request.id);
       if (request.op === "models") return ollamaModels();
       if (request.op === "configure") {
@@ -518,8 +658,20 @@ app
         if (picked.canceled || !picked.filePaths[0])
           throw Error("Selecao de pasta cancelada.");
         const selected = picked.filePaths[0];
-        if (path.parse(selected).root === selected)
-          throw Error("Escolha uma pasta especifica, nao o disco inteiro.");
+        if (path.parse(selected).root === selected) {
+          if (access.mode !== "full")
+            throw Error("Um disco inteiro exige modo acesso total.");
+          const consent = await dialog.showMessageBox(window, {
+            type: "warning",
+            defaultId: 1,
+            cancelId: 1,
+            buttons: ["Autorizar este disco", "Cancelar"],
+            message: `Autorizar arquivos em ${selected}?`,
+            detail:
+              "A area inclui arquivos pessoais e do sistema. O Jarvis respeita as permissoes do Windows e nao atravessa links/junctions. Pode ler textos, criar novos arquivos e enviar arquivos para a Lixeira com confirmacao. Nao apaga pastas nem sobrescreve arquivos existentes. Este acesso pode ser revogado em Execucoes.",
+          });
+          if (consent.response !== 0) throw Error("Acesso ao disco cancelado.");
+        }
         await checkedPath(selected, ".");
         return engine.execute({ type: "agent.workspace", path: selected });
       }
@@ -532,6 +684,11 @@ app
         return { state: await engine.read() };
       }
       if (!runtimeReady) throw Error("Conclua a preparacao inicial do Jarvis.");
+      if (assistant.active || agent.active)
+        throw Error("Assistente ocupado; interrompa ou aguarde.");
+      const state = await engine.read();
+      if (state.agent.autonomy && state.settings.access.mode === "full")
+        await authorizeAutonomy();
       const result = await assistant.respond(request?.content);
       if (window && !window.isDestroyed())
         window.webContents.send("jarvis:state", result.state);
@@ -667,6 +824,7 @@ app
           ? "SQLite · protecao do Windows"
           : "Protecao do sistema indisponivel",
         capabilities: {
+          commands: process.platform === "win32",
           web: true,
           files: true,
           desktop: process.platform === "win32",

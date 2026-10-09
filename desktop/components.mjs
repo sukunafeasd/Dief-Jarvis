@@ -45,6 +45,12 @@ export const COMPONENTS = Object.freeze([
     sha: "0175c753f59c54e7fd5a995bedef0c5ff2fb67e0043dd3dcb2ae74ec2acbeb2a",
   },
   {
+    file: "kokoro/voices/pm_santa.bin",
+    url: HUB + "voices/pm_santa.bin",
+    size: 522240,
+    sha: "8b012db3185778afe2e45a62cbad69db73021774fe68dda634bcc748a982eede",
+  },
+  {
     file: "stt-pt.tar.gz",
     url: "https://ccoreilly.github.io/vosk-browser/models/vosk-model-small-pt-0.3.tar.gz",
     size: 32440432,

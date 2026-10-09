@@ -177,6 +177,10 @@ export class JarvisEngine {
       settings: {
         ...VOICE_DEFAULTS,
         ...state.settings,
+        ...(state.settings.voicePresetVersion === undefined &&
+        state.settings.voiceProfile === "pm_alex"
+          ? { voiceProfile: "dief_pt" }
+          : {}),
         access: { ...ACCESS_DEFAULTS, ...state.settings.access },
       },
     };
@@ -222,7 +226,7 @@ export class JarvisEngine {
           throw Error("Autorize a autonomia explicitamente.");
         state.agent.autonomy = action.value;
         detail = action.value
-          ? "Autonomia de leitura autorizada; acoes sensiveis mantem confirmacao"
+          ? "Autonomia de leitura e operacoes rotineiras autorizada; alto risco mantem confirmacao"
           : "Autonomia revogada";
         break;
       case "screen.card":
@@ -244,10 +248,14 @@ export class JarvisEngine {
       case "assistant.record": {
         const content = textValue(action.content),
           answer = textValue(action.reply);
-        state.messages.push(
-          { id: this.id(), role: "user", content, at },
-          { id: this.id(), role: "jarvis", content: answer, at },
-        );
+        if (action.continuation !== true)
+          state.messages.push({ id: this.id(), role: "user", content, at });
+        state.messages.push({
+          id: this.id(),
+          role: "jarvis",
+          content: answer,
+          at,
+        });
         state.messages = state.messages.slice(-200);
         reply = answer;
         detail = "Resposta do assistente registrada";
@@ -363,12 +371,61 @@ export class JarvisEngine {
           });
           step.output = "Tarefa salva.";
           openPanel(state, "tasks");
+        } else if (step.tool === "task.list" || step.tool === "task.search") {
+          const tasks =
+            step.tool === "task.search"
+              ? state.tasks.filter((item) =>
+                  normalize(item.text).includes(normalize(step.args.query)),
+                )
+              : state.tasks;
+          step.output = JSON.stringify({
+            tasks: tasks
+              .slice(0, 25)
+              .map(({ id, text, done }) => ({ id, text, done })),
+            total: tasks.length,
+            shown: Math.min(25, tasks.length),
+          });
+        } else if (step.tool === "task.complete") {
+          const task = state.tasks.find((item) => item.id === step.args.id);
+          if (!task)
+            throw Error(
+              "Tarefa nao encontrada; consulte a lista antes de concluir.",
+            );
+          task.done = true;
+          task.completedAt = at;
+          step.output = JSON.stringify({
+            id: task.id,
+            text: task.text,
+            done: true,
+          });
+          openPanel(state, "tasks");
+        } else if (step.tool === "memory.search") {
+          const terms = normalize(step.args.query)
+            .split(/\s+/)
+            .filter((word) => word.length > 2);
+          const matches = state.memories
+            .map((item) => ({
+              item,
+              score: terms.filter((term) => normalize(item.text).includes(term))
+                .length,
+            }))
+            .filter(({ score }) => score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 4);
+          step.output = JSON.stringify(
+            matches.map(({ item }) => ({
+              id: item.id,
+              text: item.text,
+              source: item.source,
+              createdAt: item.createdAt,
+            })),
+          );
         } else if (step.tool === "memory.create") {
           if (state.memories.length >= 1000) throw Error("Limite de memorias.");
           state.memories.unshift({
             id,
             text: step.args.text,
-            source: "Voce",
+            source: "Comando do assistente",
             createdAt: at,
           });
           step.output = "Memoria salva.";
@@ -532,6 +589,7 @@ export class JarvisEngine {
           if (
             ![
               "name",
+              "city",
               "theme",
               "motion",
               "sound",
@@ -542,6 +600,9 @@ export class JarvisEngine {
           )
             throw Error("Ajuste nao autorizado.");
           if (key === "name") state.settings.name = textValue(changes[key], 60);
+          else if (key === "city")
+            state.settings.city =
+              changes[key] === "" ? "" : textValue(changes[key], 100);
           else if (key === "theme") {
             if (!THEMES.includes(changes[key])) throw Error("Paleta invalida.");
             state.settings.theme = changes[key];
@@ -573,7 +634,7 @@ export class JarvisEngine {
         const next = { ...state.settings.access, ...access };
         const expands =
           (next.mode === "full" && state.settings.access.mode !== "full") ||
-          ["web", "files", "desktop", "admin"].some(
+          ["web", "files", "desktop", "commands", "admin"].some(
             (key) => next[key] && !state.settings.access[key],
           );
         if (expands && action.confirmed !== true)

@@ -883,6 +883,8 @@ export default function App() {
           1400,
         );
       }
+      if (result?.reply && result.state?.settings.voice)
+        voice.speak(result.reply, result.state.settings);
       return result;
     } catch (error) {
       if (long && mounted.current) setPhase("idle");

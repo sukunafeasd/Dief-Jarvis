@@ -7,6 +7,16 @@ await fs.mkdir("artifacts", { recursive: true });
 const voice = new NeuralVoice(runtimeRoot());
 for (const [file, text, profile] of [
   [
+    "jarvis-dief-pt",
+    "Boa noite, Cafe. Estou a sua disposicao. Vou consultar a previsao do tempo e organizar suas tarefas.",
+    "dief_pt",
+  ],
+  [
+    "jarvis-santa",
+    "Boa noite, Cafe. Estou a sua disposicao. Vou consultar a previsao do tempo e organizar suas tarefas.",
+    "pm_santa",
+  ],
+  [
     "jarvis-alex",
     "Boa noite. Dief Jarvis esta pronto. Aguardando suas instrucoes.",
     "pm_alex",

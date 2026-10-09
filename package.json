@@ -1,6 +1,6 @@
 {
   "name": "dief-jarvis",
-  "version": "1.0.0-alpha.4",
+  "version": "1.0.0-alpha.5",
   "private": true,
   "description": "Central de comando pessoal Dief Jarvis.",
   "author": "Equipe Dief",
@@ -16,6 +16,7 @@
     "test:voice": "node tests/voice-browser.mjs",
     "test:wake": "node tests/wake-worklet.mjs",
     "test:synthesis": "node tests/synthesize-voice.mjs",
+    "test:voice-stream": "node tests/voice-stream.mjs",
     "prepare:voice": "node scripts/prepare-voice.mjs",
     "build:helper": "node scripts/build-desktop-helper.mjs",
     "verify:package": "node scripts/verify-package.mjs",
