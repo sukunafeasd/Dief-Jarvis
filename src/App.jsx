@@ -45,6 +45,10 @@ import { PANELS, initialState, verifyAudit } from "./core/model.mjs";
 import { VoiceChannel } from "./voice.mjs";
 import Settings from "./components/Settings.jsx";
 import AgentConsole from "./components/AgentConsole.jsx";
+import HoloConsole from "./components/HoloConsole.jsx";
+import Startup from "./components/Startup.jsx";
+import { WakeListener } from "./wake-listener.mjs";
+import { AssistantSession } from "./core/assistant.mjs";
 import { AgentController } from "./core/agent.mjs";
 import "./core-effects.css";
 
@@ -392,6 +396,15 @@ function Briefing({ state }) {
 export default function App() {
   const engine = useMemo(() => new JarvisEngine(browserStorage()), []);
   const [state, setState] = useState(initialState);
+  const voiceOnly =
+    state.view === "central" && state.settings.presentation === "voice";
+  const [listenState, setListenState] = useState("off");
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [runtimeStatus, setRuntimeStatus] = useState(null);
+  const [runtimeProgress, setRuntimeProgress] = useState(null);
+  const [runtimeError, setRuntimeError] = useState("");
+  const commandHandler = useRef(null);
+  const listenerRef = useRef(null);
   const [ready, setReady] = useState(false);
   const [fatal, setFatal] = useState("");
   const [busy, setBusy] = useState(false);
@@ -424,6 +437,8 @@ export default function App() {
         onTranscript: (text) => setDraft(text),
         onPhase: setPhase,
         onError: setNotice,
+        onLevel: setAudioLevel,
+        onSpokenEnd: () => listenerRef.current?.afterSpeech(),
       }),
     [],
   );
@@ -437,18 +452,47 @@ export default function App() {
     () => new AgentController(engine, { onChange: updateState }),
     [engine, updateState],
   );
+  const browserAssistant = useMemo(
+    () => new AssistantSession(engine, browserAgent),
+    [engine, browserAgent],
+  );
+  const listener = useMemo(
+    () =>
+      new WakeListener({
+        modelUrl: window.jarvisDesktop
+          ? "jarvis://app/components/stt-pt.tar.gz"
+          : "/__jarvis_voice/stt-pt.tar.gz",
+        keywordUrl: window.jarvisDesktop
+          ? "jarvis://app/components/stt-wake-en.tar.gz"
+          : "/__jarvis_voice/stt-wake-en.tar.gz",
+        onCommand: (content) => commandHandler.current?.(content),
+        onState: setListenState,
+        onLevel: setAudioLevel,
+        onError: setNotice,
+      }),
+    [],
+  );
+  listenerRef.current = listener;
+  useEffect(() => {
+    listener.setMuted(["working", "speaking", "received"].includes(phase));
+  }, [listener, phase]);
+  useEffect(() => {
+    if (!voiceOnly) listener.stop();
+  }, [voiceOnly, listener]);
   const hologramError = useCallback((text) => setRenderError(text), []);
   useEffect(() => {
     const media = matchMedia("(max-width: 900px)");
     const sidebar = navRef.current,
       main = mainRef.current;
     const update = () => {
-      sidebar.inert = media.matches && !menu;
-      main.inert = media.matches && menu;
-      if (media.matches && menu) sidebar.querySelector(".nav-close")?.focus();
+      sidebar.inert = (media.matches || voiceOnly) && !menu;
+      main.inert = (media.matches || voiceOnly) && menu;
+      if ((media.matches || voiceOnly) && menu)
+        sidebar.querySelector(".nav-close")?.focus();
     };
     const trap = (event) => {
-      if (!media.matches || !menu || event.key !== "Tab") return;
+      if ((!media.matches && !voiceOnly) || !menu || event.key !== "Tab")
+        return;
       const buttons = [...sidebar.querySelectorAll("button")].filter(
         (button) => button.getClientRects().length && !button.disabled,
       );
@@ -471,7 +515,7 @@ export default function App() {
       media.removeEventListener("change", update);
       document.removeEventListener("keydown", trap);
     };
-  }, [menu]);
+  }, [menu, voiceOnly]);
   useEffect(() => {
     mounted.current = true;
     const unsubscribe = window.jarvisDesktop?.onState(updateState);
@@ -486,6 +530,30 @@ export default function App() {
         if (window.jarvisDesktop)
           setPlatform(await window.jarvisDesktop.platform());
         setReady(true);
+        if (window.jarvisDesktop?.setup) {
+          try {
+            setRuntimeStatus(
+              await window.jarvisDesktop.setup({ op: "status" }),
+            );
+          } catch (error) {
+            setRuntimeError(error.message);
+          }
+        } else if (import.meta.env.DEV) {
+          window.jarvisPreviewVoice = {
+            speak: async (text, profile, speed) => {
+              const result = await fetch("/__jarvis_voice/speak", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text, profile, speed }),
+              });
+              if (!result.ok)
+                throw Error(
+                  (await result.json()).error || "Nao foi possivel gerar voz.",
+                );
+              return result.arrayBuffer();
+            },
+          };
+        }
       } catch (error) {
         if (mounted.current) setFatal(error.message);
       }
@@ -493,14 +561,18 @@ export default function App() {
     const timer = setInterval(() => {
       if (!document.hidden) setClock(new Date());
     }, 1000);
-    const stop = () => voice.stop();
+    const stop = () => {
+      voice.stop();
+      listener.stop();
+      window.jarvisDesktop?.voice({ op: "stop" }).catch(() => {});
+    };
     const visibility = () => {
-      if (document.hidden) voice.stop();
+      if (document.hidden) stop();
     };
     document.addEventListener("visibilitychange", visibility);
     const key = (event) => {
       if (event.key === "Escape") {
-        voice.stop();
+        stop();
         setMenu(false);
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
@@ -515,13 +587,18 @@ export default function App() {
       unsubscribe?.();
       clearInterval(timer);
       voice.dispose();
+      listener.stop();
       clearTimeout(settleTimer.current);
       clearTimeout(responseTimer.current);
       document.removeEventListener("visibilitychange", visibility);
       document.removeEventListener("keydown", key);
       window.removeEventListener("pagehide", stop);
     };
-  }, [engine, voice, browserAgent, updateState]);
+  }, [engine, voice, browserAgent, updateState, listener]);
+  useEffect(
+    () => window.jarvisDesktop?.onSetupProgress(setRuntimeProgress),
+    [],
+  );
   useEffect(() => {
     if (!notice) return;
     const timer = setTimeout(() => setNotice(""), 6500);
@@ -597,7 +674,20 @@ export default function App() {
           setNotice(error.message);
           return null;
         })
-      : await act({ type: "chat.send", content });
+      : await (async () => {
+          try {
+            const reply = window.jarvisDesktop?.assistant
+              ? await window.jarvisDesktop.assistant({ content })
+              : await browserAssistant.respond(content);
+            updateState(reply.state);
+            if (reply.reply && reply.state.settings.voice)
+              voice.speak(reply.reply, reply.state.settings);
+            return reply;
+          } catch (error) {
+            setNotice(error.message);
+            return null;
+          }
+        })();
     if (mounted.current) {
       if (!result) setDraft((current) => current || content);
       setBusy(false);
@@ -663,7 +753,7 @@ export default function App() {
     }
     if (!voice.available()) {
       setNotice(
-        "Voz de entrada indisponivel aqui. O motor de voz desktop sera conectado em outra etapa.",
+        "Reconhecimento curto do navegador indisponivel. Use a escuta local no modo holograma.",
       );
       return;
     }
@@ -674,6 +764,90 @@ export default function App() {
     voice.start();
   };
   const common = { state, act, openForm, confirm };
+  const speechRequest = async (content) => {
+    if (sendGuard.current || !ready) return;
+    listener.setMuted(true);
+    sendGuard.current = true;
+    voice.stop();
+    setPhase("received");
+    setImpulse((value) => value + 1);
+    try {
+      setPhase("working");
+      const result = window.jarvisDesktop?.assistant
+        ? await window.jarvisDesktop.assistant({ content })
+        : await browserAssistant.respond(content);
+      updateState(result.state);
+      if (result.reply && result.state.settings.voice)
+        voice.speak(result.reply, result.state.settings);
+      else {
+        setPhase("responding");
+        clearTimeout(responseTimer.current);
+        responseTimer.current = setTimeout(() => {
+          if (mounted.current)
+            setPhase((current) =>
+              current === "responding" ? "idle" : current,
+            );
+        }, 1400);
+      }
+    } catch (error) {
+      setNotice(error.message);
+      setPhase("idle");
+    } finally {
+      sendGuard.current = false;
+    }
+  };
+  commandHandler.current = speechRequest;
+  const stopListening = () => {
+    listener.stop();
+    voice.stop();
+    window.jarvisDesktop?.voice({ op: "stop" }).catch(() => {});
+  };
+  const startListening = () =>
+    confirm(
+      "Ativar escuta continua local nesta sessao? O audio sera processado no dispositivo, nao salvo. Vozes de outras pessoas ou da TV podem acionar Jarvis; nao ha identificacao do falante. Ocultar a janela encerra a captura.",
+      async () => {
+        try {
+          if (window.jarvisDesktop?.voice)
+            await window.jarvisDesktop.voice({ op: "listen" });
+          else {
+            const result = await fetch("/__jarvis_voice/status");
+            if (!result.ok || !(await result.json()).ready)
+              throw Error(
+                "Os componentes de voz ainda precisam ser preparados.",
+              );
+          }
+          const saved = await act({
+            type: "settings.update",
+            changes: { voice: true },
+          });
+          if (!saved)
+            throw Error(
+              "Nao consegui salvar a preferencia de resposta por voz.",
+            );
+          await listener.start(state.settings.voiceLang);
+        } catch (error) {
+          setNotice(error.message);
+        }
+      },
+    );
+  const setupRequest = async (request) => {
+    if (request.op === "connect") {
+      const result = await window.jarvisDesktop.agent({
+        op: "configure",
+        provider: "ollama",
+        model: request.model,
+      });
+      updateState(result.state);
+      request = { op: "status" };
+    }
+    const result = await window.jarvisDesktop.setup(request);
+    if (result?.components) {
+      setRuntimeStatus(result);
+      setRuntimeError("");
+    }
+    if (request.op === "model") updateState(await window.jarvisDesktop.read());
+    return result;
+  };
   const agentRequest = async (request, long = false) => {
     if (!ready || fatal) throw Error("O nucleo ainda nao esta pronto.");
     if (long) {
@@ -752,6 +926,24 @@ export default function App() {
             setNotice(error.message);
           }
         }}
+        onAutonomy={async (value) => {
+          try {
+            const result = await window.jarvisDesktop.agent({
+              op: "autonomy",
+              value,
+            });
+            updateState(result.state);
+          } catch (error) {
+            setNotice(error.message);
+          }
+        }}
+        onElevate={async () => {
+          try {
+            await window.jarvisDesktop.agent({ op: "elevate" });
+          } catch (error) {
+            setNotice(error.message);
+          }
+        }}
       />
     ) : (
       <Briefing state={state} />
@@ -759,7 +951,8 @@ export default function App() {
   const auditLatest = [...state.audit].reverse().slice(0, 4);
   return (
     <div
-      className={`app-shell theme-${state.settings.theme} phase-${phase} ${state.focus ? "focus-mode" : ""}`}
+      className={`app-shell theme-${state.settings.theme} phase-${phase} ${state.focus ? "focus-mode" : ""} ${voiceOnly ? "voice-only" : ""}`}
+      aria-busy={busy}
     >
       <aside
         ref={navRef}
@@ -784,6 +977,28 @@ export default function App() {
             onClick={() => setMenu(false)}
           />
         </div>
+        <button
+          className="nav-row workspace-mode"
+          onClick={async () => {
+            const result = await act({
+              type: "settings.update",
+              changes: {
+                presentation:
+                  state.settings.presentation === "voice"
+                    ? "workspace"
+                    : "voice",
+              },
+            });
+            if (result) nav("central");
+          }}
+        >
+          <Aperture size={18} />
+          <span>
+            {state.settings.presentation === "voice"
+              ? "Modo painel"
+              : "Modo holograma"}
+          </span>
+        </button>
         <nav>
           {NAV.map(([key, Icon, label]) => (
             <button
@@ -878,6 +1093,7 @@ export default function App() {
                 motion={state.settings.motion}
                 quality={state.settings.quality}
                 phase={phase}
+                audioLevel={audioLevel}
                 impulse={impulse}
                 intensity={state.settings.intensity ?? 1}
                 motionMode={state.settings.motionMode || "system"}
@@ -934,7 +1150,7 @@ export default function App() {
                   onClick={() => act({ type: "screen.focus", value: false })}
                 />
               </div>
-              {!state.focus && (
+              {!state.focus && !voiceOnly && (
                 <div className="left-rail">
                   <section className="hud-section">
                     <header>
@@ -989,7 +1205,7 @@ export default function App() {
                   </div>
                 </div>
               )}
-              {!state.focus && (
+              {!state.focus && !voiceOnly && (
                 <aside className="right-rail">
                   {state.panels.length ? (
                     <div className="widget-stack">
@@ -1102,6 +1318,40 @@ export default function App() {
               )}
             </>
           )}
+          {voiceOnly && (
+            <HoloConsole
+              state={state}
+              act={act}
+              listenState={listenState}
+              phase={phase}
+              level={audioLevel}
+              start={startListening}
+              stop={stopListening}
+              stopTask={() => {
+                voice.stop();
+                if (window.jarvisDesktop?.assistant)
+                  window.jarvisDesktop
+                    .assistant({ op: "stop" })
+                    .catch((error) => setNotice(error.message));
+                else browserAssistant.stop();
+              }}
+              menu={() => setMenu(!menu)}
+              fullscreen={async () => {
+                try {
+                  if (window.jarvisDesktop?.display)
+                    await window.jarvisDesktop.display();
+                  else if (document.fullscreenElement)
+                    await document.exitFullscreen();
+                  else await document.documentElement.requestFullscreen();
+                } catch (error) {
+                  setNotice(error.message);
+                }
+              }}
+              openChat={() => nav("conversation")}
+              openRuns={() => nav("agent")}
+              removeCard={(id) => act({ type: "screen.card.remove", id })}
+            />
+          )}
           {state.view !== "central" && state.view !== "conversation" && (
             <section className="full-view">
               <div className="view-header">
@@ -1181,83 +1431,97 @@ export default function App() {
             </span>
           </div>
         </main>
-        <section className="command-dock" aria-label="Conversa com Jarvis">
-          <div className="last-response">
-            <span>JARVIS</span>
-            <p aria-live="polite">
-              {state.messages.at(-1)?.role === "jarvis"
-                ? state.messages.at(-1).content
-                : `Estou aqui, ${state.settings.name}.`}
-            </p>
-            {state.messages.length > 0 && (
-              <button
-                className="text-action"
-                onClick={() => nav("conversation")}
-                aria-label="Abrir conversa completa"
-              >
-                <MessageSquare size={15} />
-              </button>
-            )}
-          </div>
-          <form className="command-form" onSubmit={submit}>
-            <Aperture className="command-symbol" size={24} strokeWidth={1.2} />
-            <textarea
-              ref={input}
-              aria-label="Fale com Jarvis"
-              placeholder="Fale com Jarvis..."
-              rows={1}
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (
-                  event.key === "Enter" &&
-                  !event.shiftKey &&
-                  !event.nativeEvent.isComposing
-                ) {
-                  event.preventDefault();
-                  submit();
-                }
-              }}
-              disabled={!ready || !!fatal}
-            />
-            <div className="command-actions">
-              <IconButton
-                icon={state.settings.voice ? Volume2 : VolumeX}
-                label={
-                  state.settings.voice
-                    ? "Desativar resposta falada"
-                    : "Ativar resposta falada"
-                }
-                active={state.settings.voice}
-                onClick={() => {
-                  if (state.settings.voice) voice.stop();
-                  act({
-                    type: "settings.update",
-                    changes: { voice: !state.settings.voice },
-                  });
-                }}
-              />
-              <IconButton
-                icon={phase === "listening" ? MicOff : Mic}
-                label={
-                  phase === "listening" ? "Parar microfone" : "Falar por voz"
-                }
-                active={phase === "listening"}
-                onClick={startVoice}
-              />
-              <button
-                type="submit"
-                className="send-button"
-                aria-label="Enviar comando"
-                title="Enviar comando"
-                disabled={busy || !draft.trim() || !ready}
-              >
-                <Send size={18} />
-              </button>
+        {!voiceOnly && (
+          <section className="command-dock" aria-label="Conversa com Jarvis">
+            <div className="last-response">
+              <span>JARVIS</span>
+              <p aria-live="polite">
+                {state.messages.at(-1)?.role === "jarvis"
+                  ? state.messages.at(-1).content
+                  : `Estou aqui, ${state.settings.name}.`}
+              </p>
+              {state.messages.length > 0 && (
+                <button
+                  className="text-action"
+                  onClick={() => nav("conversation")}
+                  aria-label="Abrir conversa completa"
+                >
+                  <MessageSquare size={15} />
+                </button>
+              )}
             </div>
-          </form>
-        </section>
+            <form className="command-form" onSubmit={submit}>
+              <Aperture
+                className="command-symbol"
+                size={24}
+                strokeWidth={1.2}
+              />
+              <textarea
+                ref={input}
+                aria-label="Fale com Jarvis"
+                placeholder="Fale com Jarvis..."
+                rows={1}
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (
+                    event.key === "Enter" &&
+                    !event.shiftKey &&
+                    !event.nativeEvent.isComposing
+                  ) {
+                    event.preventDefault();
+                    submit();
+                  }
+                }}
+                disabled={!ready || !!fatal}
+              />
+              <div className="command-actions">
+                <IconButton
+                  icon={state.settings.voice ? Volume2 : VolumeX}
+                  label={
+                    state.settings.voice
+                      ? "Desativar resposta falada"
+                      : "Ativar resposta falada"
+                  }
+                  active={state.settings.voice}
+                  onClick={() => {
+                    if (state.settings.voice) voice.stop();
+                    act({
+                      type: "settings.update",
+                      changes: { voice: !state.settings.voice },
+                    });
+                  }}
+                />
+                <IconButton
+                  icon={phase === "listening" ? MicOff : Mic}
+                  label={
+                    phase === "listening" ? "Parar microfone" : "Falar por voz"
+                  }
+                  active={phase === "listening"}
+                  onClick={startVoice}
+                />
+                <button
+                  type="submit"
+                  className="send-button"
+                  aria-label="Enviar comando"
+                  title="Enviar comando"
+                  disabled={busy || !draft.trim() || !ready}
+                >
+                  <Send size={18} />
+                </button>
+              </div>
+            </form>
+          </section>
+        )}
       </div>
+      {window.jarvisDesktop?.setup && !runtimeStatus?.ready && (
+        <Startup
+          status={runtimeStatus}
+          progress={runtimeProgress}
+          request={setupRequest}
+          error={runtimeError}
+        />
+      )}
       {fatal && (
         <div className="fatal-screen" role="alert">
           <ShieldCheck size={32} />

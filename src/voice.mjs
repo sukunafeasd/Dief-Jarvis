@@ -1,6 +1,18 @@
 export class VoiceChannel {
-  constructor({ onTranscript, onPhase, onError }) {
-    Object.assign(this, { onTranscript, onPhase, onError });
+  constructor({
+    onTranscript,
+    onPhase,
+    onError,
+    onLevel = () => {},
+    onSpokenEnd = () => {},
+  }) {
+    Object.assign(this, {
+      onTranscript,
+      onPhase,
+      onError,
+      onLevel,
+      onSpokenEnd,
+    });
     this.recognition = null;
     this.utterance = null;
     this.closed = false;
@@ -61,10 +73,25 @@ export class VoiceChannel {
     }
   }
   stop() {
+    if (this.preparing) {
+      this.preparing = null;
+      this.cancelling = (
+        window.jarvisDesktop?.voice
+          ? window.jarvisDesktop.voice({ op: "cancel-speech" })
+          : fetch("/__jarvis_voice/cancel-speech", { method: "POST" })
+      ).catch(() => {});
+    }
     clearTimeout(this.startTimeout);
     const recognition = this.recognition;
     this.recognition = null;
     this.utterance = null;
+    this.audio?.pause();
+    this.audio = null;
+    this.audioContext?.close().catch(() => {});
+    this.audioContext = null;
+    if (this.audioUrl) URL.revokeObjectURL(this.audioUrl);
+    this.audioUrl = null;
+    this.onLevel(0);
     if (recognition) {
       recognition.onstart =
         recognition.onresult =
@@ -77,6 +104,24 @@ export class VoiceChannel {
     if (!this.closed) this.onPhase("idle");
   }
   speak(text, options = {}) {
+    if (
+      options.voiceEngine === "neural" &&
+      !window.jarvisDesktop?.voice &&
+      !window.jarvisPreviewVoice
+    ) {
+      this.onPhase("idle");
+      this.onError(
+        "Voz neural requer o aplicativo preparado ou a previa local; selecione Voz do sistema para este ambiente.",
+      );
+      return;
+    }
+    if (
+      options.voiceEngine === "neural" &&
+      (window.jarvisDesktop?.voice || window.jarvisPreviewVoice)
+    ) {
+      this.speakNeural(text, options);
+      return;
+    }
     if (this.closed || !("speechSynthesis" in window)) {
       this.onPhase("idle");
       return;
@@ -107,11 +152,12 @@ export class VoiceChannel {
         this.onPhase("speaking");
       }
     };
-    utterance.onend = utterance.onerror = () => {
+    utterance.onend = () => {
       if (current()) {
         clearTimeout(this.startTimeout);
         this.utterance = null;
         this.onPhase("idle");
+        this.onSpokenEnd();
       }
     };
     utterance.onerror = () => {
@@ -138,6 +184,83 @@ export class VoiceChannel {
       speechSynthesis.speak(utterance);
     } catch {
       utterance.onerror();
+    }
+  }
+  async speakNeural(text, options) {
+    this.stop();
+    const utterance = {};
+    this.utterance = utterance;
+    const current = () => !this.closed && this.utterance === utterance;
+    this.onPhase("working");
+    try {
+      await this.cancelling;
+      if (!current()) return;
+      this.preparing = utterance;
+      const wav = window.jarvisDesktop?.voice
+        ? await window.jarvisDesktop.voice({
+            op: "speak",
+            text,
+            profile: options.voiceProfile,
+            speed: options.voiceRate,
+          })
+        : await window.jarvisPreviewVoice.speak(
+            text,
+            options.voiceProfile,
+            options.voiceRate,
+          );
+      if (this.preparing === utterance) this.preparing = null;
+      if (!current()) return;
+      this.audioUrl = URL.createObjectURL(
+        new Blob([wav], { type: "audio/wav" }),
+      );
+      const audio = new Audio(this.audioUrl);
+      this.audio = audio;
+      audio.volume = options.voiceVolume ?? 0.85;
+      const context = new (window.AudioContext || window.webkitAudioContext)();
+      this.audioContext = context;
+      const source = context.createMediaElementSource(audio),
+        analyser = context.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      analyser.connect(context.destination);
+      const samples = new Float32Array(analyser.fftSize);
+      const meter = () => {
+        if (!current() || audio.paused) return;
+        analyser.getFloatTimeDomainData(samples);
+        let sum = 0;
+        for (const sample of samples) sum += sample * sample;
+        this.onLevel(Math.min(1, Math.sqrt(sum / samples.length) * 5));
+        setTimeout(meter, 80);
+      };
+      audio.onplay = () => {
+        if (current()) {
+          this.onPhase("speaking");
+          meter();
+        }
+      };
+      audio.onended = () => {
+        if (current()) {
+          this.stop();
+          this.onSpokenEnd();
+        }
+      };
+      audio.onerror = () => {
+        if (current()) {
+          this.stop();
+          this.onError(
+            "Nao consegui reproduzir a voz; a resposta permanece no texto.",
+          );
+        }
+      };
+      await context.resume();
+      await audio.play();
+    } catch (error) {
+      if (current()) {
+        this.stop();
+        this.onError(
+          `Voz neural indisponivel: ${error.message}. A resposta foi preservada.`,
+        );
+      }
     }
   }
   dispose() {

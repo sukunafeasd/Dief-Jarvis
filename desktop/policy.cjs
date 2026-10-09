@@ -45,10 +45,65 @@ function requireRendererAction(action) {
     !action ||
     typeof action.type !== "string" ||
     action.type === "tool.web.search" ||
-    action.type.startsWith("agent.")
+    action.type.startsWith("agent.") ||
+    action.type.startsWith("assistant.") ||
+    action.type === "screen.card"
   )
     throw Error(
       "Use o executor autorizado; transicoes internas nao podem vir do renderer.",
     );
 }
-module.exports = { requireSender, assetPath, requireRendererAction };
+function ownUrl(value) {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "jarvis:" &&
+      url.hostname === "app" &&
+      !url.port &&
+      !url.username &&
+      !url.password
+    );
+  } catch {
+    return false;
+  }
+}
+function allowAudioCheck(
+  contents,
+  window,
+  granted,
+  permission,
+  origin,
+  details,
+) {
+  return Boolean(
+    window &&
+      !window.isDestroyed() &&
+      contents === window.webContents &&
+      granted &&
+      permission === "media" &&
+      details?.isMainFrame === true &&
+      details.mediaType === "audio" &&
+      ownUrl(details.requestingUrl || origin),
+  );
+}
+function allowAudioRequest(contents, window, granted, permission, details) {
+  return Boolean(
+    window &&
+      !window.isDestroyed() &&
+      contents === window.webContents &&
+      granted &&
+      permission === "media" &&
+      details?.isMainFrame === true &&
+      ownUrl(details.requestingUrl) &&
+      Array.isArray(details.mediaTypes) &&
+      details.mediaTypes.length === 1 &&
+      details.mediaTypes[0] === "audio",
+  );
+}
+module.exports = {
+  requireSender,
+  assetPath,
+  requireRendererAction,
+  allowAudioCheck,
+  allowAudioRequest,
+};

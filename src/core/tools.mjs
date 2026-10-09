@@ -1,11 +1,12 @@
 import { textValue, normalize } from "./model.mjs";
 
 const text = (max) => ({ type: "string", minLength: 1, maxLength: max });
-const spec = (title, permission, native, fields) =>
+const spec = (title, permission, native, fields, risk = "write") =>
   Object.freeze({
     title,
     permission,
     native,
+    risk,
     schema: {
       type: "object",
       additionalProperties: false,
@@ -16,18 +17,43 @@ const spec = (title, permission, native, fields) =>
 export const TOOLS = Object.freeze({
   "task.create": spec("Criar tarefa", null, false, { text: text(500) }),
   "memory.create": spec("Guardar memoria", null, false, { text: text(4000) }),
-  "screen.open": spec("Mostrar painel", null, false, {
-    panel: {
-      type: "string",
-      enum: ["tasks", "memory", "audit", "briefing", "connections", "settings"],
+  "screen.open": spec(
+    "Mostrar painel",
+    null,
+    false,
+    {
+      panel: {
+        type: "string",
+        enum: [
+          "tasks",
+          "memory",
+          "audit",
+          "briefing",
+          "connections",
+          "settings",
+        ],
+      },
     },
-  }),
-  "workspace.list": spec("Listar pasta autorizada", "files", true, {
-    path: text(240),
-  }),
-  "workspace.read": spec("Ler arquivo de texto", "files", true, {
-    path: text(240),
-  }),
+    "read",
+  ),
+  "workspace.list": spec(
+    "Listar pasta autorizada",
+    "files",
+    true,
+    {
+      path: text(240),
+    },
+    "read",
+  ),
+  "workspace.read": spec(
+    "Ler arquivo de texto",
+    "files",
+    true,
+    {
+      path: text(240),
+    },
+    "read",
+  ),
   "workspace.create": spec("Criar arquivo de texto", "files", true, {
     path: text(240),
     content: text(16000),
@@ -35,9 +61,94 @@ export const TOOLS = Object.freeze({
   "workspace.trash": spec("Enviar arquivo para a Lixeira", "files", true, {
     path: text(240),
   }),
-  "web.search": spec("Abrir pesquisa no navegador", "web", true, {
-    query: text(300),
-  }),
+  "web.search": spec(
+    "Abrir pesquisa no navegador",
+    "web",
+    true,
+    {
+      query: text(300),
+    },
+    "read",
+  ),
+  "web.open": spec(
+    "Abrir pagina no navegador agente",
+    "web",
+    true,
+    { url: text(2000) },
+    "read",
+  ),
+  "web.observe": spec("Observar pagina do agente", "web", true, {}, "read"),
+  "web.click": spec(
+    "Clicar na pagina",
+    "web",
+    true,
+    { ref: text(80) },
+    "sensitive",
+  ),
+  "web.fill": spec(
+    "Preencher campo da pagina",
+    "web",
+    true,
+    { ref: text(80), text: text(2000) },
+    "sensitive",
+  ),
+  "desktop.list": spec("Listar janelas do PC", "desktop", true, {}, "read"),
+  "desktop.observe": spec(
+    "Observar controles da janela",
+    "desktop",
+    true,
+    { window: text(50) },
+    "read",
+  ),
+  "desktop.focus": spec(
+    "Trazer janela para frente",
+    "desktop",
+    true,
+    { window: text(50) },
+    "sensitive",
+  ),
+  "desktop.invoke": spec(
+    "Acionar controle da janela",
+    "desktop",
+    true,
+    { window: text(50), ref: text(100) },
+    "sensitive",
+  ),
+  "desktop.type": spec(
+    "Preencher campo do aplicativo",
+    "desktop",
+    true,
+    { window: text(50), ref: text(100), text: text(2000) },
+    "sensitive",
+  ),
+  "weather.current": spec(
+    "Consultar tempo da cidade",
+    "web",
+    true,
+    { city: text(100) },
+    "read",
+  ),
+  "news.headlines": spec(
+    "Consultar manchetes de tecnologia / Hacker News",
+    "web",
+    true,
+    {},
+    "read",
+  ),
+  "screen.metric": spec(
+    "Mostrar medida informada",
+    null,
+    false,
+    { title: text(80), value: text(30), unit: text(30) },
+    "read",
+  ),
+  "system.status": spec(
+    "Mostrar estado real do aplicativo",
+    null,
+    false,
+    {},
+    "read",
+  ),
 });
 function object(value, keys) {
   if (
@@ -109,6 +220,44 @@ export function localPlan(goal) {
     const search = part.match(/^pesquise\s+(.+)$/is);
     if (search)
       return { tool: "web.search", args: { query: search[1].trim() } };
+    const site = part.match(/^abra (https:\/\/\S+)$/i);
+    if (site) return { tool: "web.open", args: { url: site[1] } };
+    if (command === "observe a pagina")
+      return { tool: "web.observe", args: {} };
+    if (command === "liste janelas") return { tool: "desktop.list", args: {} };
+    const weather = part.match(/^(?:tempo|temperatura) (?:em|de)\s+(.+)$/i);
+    if (weather) return { tool: "weather.current", args: { city: weather[1] } };
+    if (/^(?:mostre |leia )?(?:as )?noticias(?: de tecnologia)?$/.test(command))
+      return { tool: "news.headlines", args: {} };
+    const distance = command.match(
+      /^(?:hoje )?(?:eu )?corri\s+(\d+(?:[.,]\d+)?|zero|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez)\s*(km|quilometros|metros|m)(?: hoje)?[.!]*$/,
+    );
+    const spoken = {
+      zero: "0",
+      um: "1",
+      uma: "1",
+      dois: "2",
+      duas: "2",
+      tres: "3",
+      quatro: "4",
+      cinco: "5",
+      seis: "6",
+      sete: "7",
+      oito: "8",
+      nove: "9",
+      dez: "10",
+    };
+    if (distance)
+      return {
+        tool: "screen.metric",
+        args: {
+          title: "Corrida informada na conversa",
+          value: spoken[distance[1]] || distance[1].replace(",", "."),
+          unit: /^(?:k|quilo)/.test(distance[2]) ? "km" : "m",
+        },
+      };
+    if (/^(?:mostre )?(?:status|estado do sistema)$/.test(command))
+      return { tool: "system.status", args: {} };
     if (/^liste (?:a )?pasta$/.test(command))
       return { tool: "workspace.list", args: { path: "." } };
     const file = part.match(/^(leia|exclua) arquivo\s+(.+)$/is);
@@ -135,7 +284,7 @@ export function localPlan(goal) {
       ajustes: "settings",
     };
     const panel = command.match(
-      /^mostre (tarefas|memoria|auditoria|briefing|conexoes|ajustes)$/,
+      /^(?:mostre|mostra) (?:minhas? |meus? |a |as |o |os )?(tarefas|memoria|auditoria|briefing|conexoes|ajustes)$/,
     );
     if (panel)
       return { tool: "screen.open", args: { panel: panels[panel[1]] } };

@@ -1,6 +1,6 @@
 {
   "name": "dief-jarvis",
-  "version": "1.0.0-alpha.3",
+  "version": "1.0.0-alpha.4",
   "private": true,
   "description": "Central de comando pessoal Dief Jarvis.",
   "author": "Equipe Dief",
@@ -12,30 +12,42 @@
     "preview": "vite preview --host 127.0.0.1 --port 5195 --strictPort",
     "test": "node --test tests/*.test.mjs",
     "test:browser": "node tests/browser.mjs",
+    "test:hologram": "node tests/hologram-browser.mjs",
+    "test:voice": "node tests/voice-browser.mjs",
+    "test:wake": "node tests/wake-worklet.mjs",
+    "test:synthesis": "node tests/synthesize-voice.mjs",
+    "prepare:voice": "node scripts/prepare-voice.mjs",
+    "build:helper": "node scripts/build-desktop-helper.mjs",
     "verify:package": "node scripts/verify-package.mjs",
     "desktop": "electron .",
     "setup:desktop": "node node_modules/electron/install.js",
-    "package:dir": "npm run build && electron-builder --win --dir --publish never",
-    "package:portable": "npm run build && electron-builder --win portable --publish never"
+    "package:dir": "npm run build:helper && npm run build && electron-builder --win --dir --publish never",
+    "package:portable": "npm run build:helper && npm run build && electron-builder --win portable --publish never"
   },
   "dependencies": {
+    "@huggingface/transformers": "4.3.1",
+    "ephone": "1.0.2",
+    "lucide-react": "1.49.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "lucide-react": "1.49.0",
-    "three": "0.186.1"
+    "three": "0.186.1",
+    "vosk-browser": "0.0.8"
   },
   "devDependencies": {
-    "vite": "8.3.2",
     "@vitejs/plugin-react": "6.1.2",
     "electron": "44.7.0",
     "electron-builder": "26.15.3",
     "playwright": "1.62.1",
-    "pngjs": "7.0.0"
+    "pngjs": "7.0.0",
+    "vite": "8.3.2"
   },
   "overrides": {
     "http-cache-semantics": "4.3.0",
     "@electron/get": {
       "global-agent": "4.1.3"
+    },
+    "vosk-browser": {
+      "uuid": "11.1.1"
     }
   },
   "engines": {
@@ -49,10 +61,23 @@
       "output": "release"
     },
     "asar": true,
+    "extraResources": [
+      {
+        "from": "desktop/native/DiefJarvis.Desktop.exe",
+        "to": "native/DiefJarvis.Desktop.exe"
+      },
+      {
+        "from": "desktop/native/helper-integrity.json",
+        "to": "native/helper-integrity.json"
+      }
+    ],
     "files": [
       "dist/**/*",
       "desktop/**/*",
+      "!desktop/native/*.exe",
+      "!desktop/native/helper-integrity.json",
       "src/core/**/*",
+      "licenses/**/*",
       "package.json"
     ],
     "win": {

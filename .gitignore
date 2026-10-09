@@ -9,6 +9,7 @@ artifacts/
 *.sqlite*
 *.db
 *.exe
+desktop/native/helper-integrity.json
 *.zip
 *.pem
 *.key

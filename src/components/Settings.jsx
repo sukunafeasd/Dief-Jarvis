@@ -68,6 +68,8 @@ export default function Settings({
   exportData,
   previewVoice,
   onSearch,
+  onAutonomy,
+  onElevate,
 }) {
   const [section, setSection] = useState("display");
   const [name, setName] = useState(state.settings.name);
@@ -239,12 +241,49 @@ export default function Settings({
             {toggle("voice", "Resposta falada")}
             {toggle("sound", "Efeitos sonoros")}
             <label className="setting-row">
+              <span>Motor da voz</span>
+              <select
+                aria-label="Motor da voz"
+                value={options.voiceEngine}
+                onChange={(event) => save({ voiceEngine: event.target.value })}
+              >
+                <option value="neural">Neural local / Kokoro</option>
+                <option value="system">Voz do sistema</option>
+              </select>
+            </label>
+            {options.voiceEngine === "neural" && (
+              <label className="setting-row">
+                <span>Perfil neural</span>
+                <select
+                  aria-label="Perfil neural"
+                  value={options.voiceProfile}
+                  onChange={(event) =>
+                    save({
+                      voiceProfile: event.target.value,
+                      voiceLang:
+                        event.target.value === "bm_george" ? "en-GB" : "pt-BR",
+                    })
+                  }
+                >
+                  <option value="pm_alex">Alex / portugues masculino</option>
+                  <option value="bm_george">
+                    George / britanico masculino
+                  </option>
+                </select>
+              </label>
+            )}
+            <label className="setting-row">
               <span>Idioma da voz</span>
               <select
                 aria-label="Idioma da voz"
                 value={options.voiceLang}
                 onChange={(event) =>
-                  save({ voiceLang: event.target.value, voiceURI: "" })
+                  save({
+                    voiceLang: event.target.value,
+                    voiceURI: "",
+                    voiceProfile:
+                      event.target.value === "en-GB" ? "bm_george" : "pm_alex",
+                  })
                 }
               >
                 <option value="pt-BR">Portugues · Brasil</option>
@@ -255,6 +294,7 @@ export default function Settings({
               <span>Voz instalada</span>
               <select
                 aria-label="Voz instalada"
+                disabled={options.voiceEngine !== "system"}
                 value={
                   localVoices.some(
                     (voice) => voice.voiceURI === options.voiceURI,
@@ -282,14 +322,15 @@ export default function Settings({
               </select>
             </label>
             {slider("voiceRate", "Velocidade da fala", 0.6, 1.4, 0.01)}
-            {slider("voicePitch", "Tom da voz", 0.5, 1.5, 0.05)}
+            {options.voiceEngine === "system" &&
+              slider("voicePitch", "Tom da voz", 0.5, 1.5, 0.05)}
             {slider("voiceVolume", "Volume", 0, 1, 0.05)}
             <button
               className="secondary-button"
               onClick={() =>
                 previewVoice(
                   options.voiceLang === "en-GB"
-                    ? "Good evening. Dief Jarvis is ready. All systems are under your control."
+                    ? "Good evening. Dief Jarvis is ready. Awaiting your instructions."
                     : "Boa noite. Dief Jarvis esta pronto. Aguardando suas instrucoes.",
                   options,
                 )
@@ -301,18 +342,19 @@ export default function Settings({
             <div className="config-note">
               <Mic size={18} />
               <p>
-                Voz atual: sintese do sistema, nao a voz original do filme.
-                Microfone somente por toque e consentimento; no EXE a entrada
-                dedicada ainda nao esta conectada.
+                Perfis licenciados de voz, nao a voz oficial ou clonada do
+                filme. Escuta continua somente apos consentimento nesta sessao.
+                Vozes audiveis de outras pessoas tambem podem acionar o nome
+                Jarvis.
               </p>
             </div>
             <div className="voice-direction">
-              <span className="eyebrow">DIRECAO DE VOZ / PROXIMA ETAPA</span>
-              <strong>Masculina, britanica, serena, articulada.</strong>
+              <span className="eyebrow">PERFIS LOCAIS</span>
+              <strong>George / ingles britanico. Alex / portugues.</strong>
               <p>
-                Azure Ryan (en-GB) e uma biblioteca licenciada da ElevenLabs sao
-                candidatos para testes. Nenhum provedor conectado, nenhuma
-                clonagem ou custo ativado.
+                Sintese executada no dispositivo, sem cobrar por fala ou enviar
+                texto a um servico de voz. O perfil britanico foi escolhido como
+                referencia de estilo; semelhanca com o filme e subjetiva.
               </p>
               {!window.jarvisDesktop && (
                 <a
@@ -379,13 +421,17 @@ export default function Settings({
               ],
               [
                 "desktop",
-                "Controlar janelas, teclado e mouse",
-                "Executor ainda nao conectado",
+                "Interagir com controles das janelas",
+                platform.capabilities?.desktop
+                  ? "UI Automation / controles acessiveis; campos protegidos bloqueados"
+                  : "Somente no EXE Windows",
               ],
               [
                 "admin",
                 "Solicitar administrador",
-                "Helper elevado ainda nao conectado",
+                platform.capabilities?.admin
+                  ? "Solicitacao separada ao UAC; nunca automatica"
+                  : "Disponivel no EXE Windows",
               ],
             ].map(([key, label, status]) => (
               <label className="setting-row permission-row" key={key}>
@@ -408,6 +454,30 @@ export default function Settings({
               <LockKeyhole size={16} />
               Revogar todos os acessos
             </button>
+            <label className="setting-row">
+              <span>
+                Autonomia de leitura e tarefas locais
+                <small>
+                  Cliques, escrita e alteracoes sensiveis mantem confirmacao
+                </small>
+              </span>
+              <input
+                type="checkbox"
+                className="toggle"
+                checked={state.agent.autonomy}
+                disabled={!window.jarvisDesktop}
+                onChange={(event) => onAutonomy(event.target.checked)}
+              />
+            </label>
+            {!!platform.capabilities?.admin && (
+              <button
+                className="secondary-button"
+                disabled={!access.admin}
+                onClick={onElevate}
+              >
+                <ShieldCheck size={15} /> Solicitar administrador pelo UAC
+              </button>
+            )}
             <form
               className="web-search"
               onSubmit={async (event) => {
@@ -497,7 +567,7 @@ export default function Settings({
             </div>
             <div className="setting-row">
               <span>Motor de comandos</span>
-              <span className="setting-value">Local · deterministico</span>
+              <span className="setting-value">Local / ferramentas tipadas</span>
             </div>
             <div className="setting-row">
               <span>IA generativa</span>
@@ -514,9 +584,10 @@ export default function Settings({
             <div className="config-note">
               <Plug size={18} />
               <p>
-                Automacoes persistentes, observacao da tela e agente Windows
-                entram por executores separados, com cancelamento, limites e
-                trilha de auditoria. Esta alpha nao executa shell livre.
+                Executores separados para web, arquivos e controles Windows, com
+                cancelamento e auditoria. Acoes sensiveis pedem confirmacao.
+                Esta alpha nao executa shell livre nem ignora protecoes do
+                Windows.
               </p>
             </div>
           </>

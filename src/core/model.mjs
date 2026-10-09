@@ -28,6 +28,9 @@ export const ACCESS_DEFAULTS = Object.freeze({
   admin: false,
 });
 export const VOICE_DEFAULTS = Object.freeze({
+  voiceEngine: "neural",
+  voiceProfile: "pm_alex",
+  presentation: "voice",
   voiceURI: "",
   voiceLang: "pt-BR",
   voiceRate: 0.96,
@@ -56,7 +59,8 @@ export function initialState() {
     },
     tasks: [],
     runs: [],
-    agent: { provider: "local", model: "", workspace: "" },
+    cards: [],
+    agent: { provider: "local", model: "", workspace: "", autonomy: false },
     memories: [],
     messages: [],
     audit: [],
@@ -64,6 +68,8 @@ export function initialState() {
   };
 }
 export function validateState(state) {
+  if (!state || typeof state !== "object" || Array.isArray(state))
+    throw Error("Estado local invalido.");
   validateRuns(state.runs || []);
   const agent = state.agent || { provider: "local", model: "", workspace: "" };
   if (
@@ -74,6 +80,28 @@ export function validateState(state) {
     agent.workspace.length > 1000
   )
     throw Error("Configuracao do agente invalida.");
+  if (agent.autonomy !== undefined && typeof agent.autonomy !== "boolean")
+    throw Error("Autonomia invalida.");
+  if (
+    state.cards !== undefined &&
+    (!Array.isArray(state.cards) ||
+      state.cards.length > 6 ||
+      state.cards.some(
+        (item) =>
+          !item ||
+          typeof item.id !== "string" ||
+          typeof item.title !== "string" ||
+          item.title.length > 100 ||
+          typeof item.value !== "string" ||
+          item.value.length > 2000 ||
+          typeof item.unit !== "string" ||
+          item.unit.length > 50 ||
+          typeof item.source !== "string" ||
+          item.source.length > 2000 ||
+          typeof item.at !== "string",
+      ))
+  )
+    throw Error("Dados de tela invalidos.");
   if (
     !state ||
     state.schema !== 1 ||
@@ -104,6 +132,9 @@ export function validateState(state) {
   }
   const options = { ...VOICE_DEFAULTS, ...state.settings };
   if (
+    !["voice", "workspace"].includes(options.presentation) ||
+    !["system", "neural"].includes(options.voiceEngine) ||
+    !["pm_alex", "bm_george"].includes(options.voiceProfile) ||
     !["system", "always"].includes(options.motionMode) ||
     !["pt-BR", "en-GB"].includes(options.voiceLang) ||
     typeof options.voiceURI !== "string" ||

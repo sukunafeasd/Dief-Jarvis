@@ -320,17 +320,18 @@ export default function Hologram({
   phase,
   impulse = 0,
   intensity = 1,
+  audioLevel = 0,
   motionMode = "system",
   onError,
 }) {
   const host = useRef(null);
-  const live = useRef({ phase, motion, impulse, intensity, motionMode });
+  const live = useRef({ phase, motion, impulse, intensity, motionMode, audioLevel });
   const wakeRef = useRef(null);
   const drag = useRef(null);
   useEffect(() => {
-    live.current = { phase, motion, impulse, intensity, motionMode };
+    live.current = { phase, motion, impulse, intensity, motionMode, audioLevel };
     wakeRef.current?.();
-  }, [phase, motion, impulse, intensity, motionMode]);
+  }, [phase, motion, impulse, intensity, motionMode, audioLevel]);
   useEffect(() => {
     const element = host.current;
     if (!element) return;
@@ -417,7 +418,7 @@ export default function Hologram({
           ].includes(live.current.phase);
           energy = THREE.MathUtils.lerp(
             energy,
-            active ? 1 : 0,
+            (active ? 0.7 : 0) + Math.min(1, live.current.audioLevel || 0) * 0.8,
             Math.min(dt * 5, 1),
           );
           const strength = live.current.intensity;
@@ -435,7 +436,7 @@ export default function Hologram({
           core.orbit.rotation.y += dt * 0.16;
           const rhythm =
             live.current.phase === "speaking"
-              ? Math.sin(t * 13) * Math.sin(t * 5.3)
+              ? (live.current.audioLevel || 0) * 2 - 0.5
               : Math.sin(t * 5);
           core.heart.scale.setScalar(
             1 +
@@ -467,6 +468,7 @@ export default function Hologram({
               Math.max(0, 0.6 * (1 - period / 1.4)) * strength;
           });
           renderer.domElement.dataset.phase = live.current.phase;
+          renderer.domElement.dataset.audioLevel = String(live.current.audioLevel || 0);
         }
         renderer.render(scene, camera);
         renderer.domElement.dataset.frame = String(now);

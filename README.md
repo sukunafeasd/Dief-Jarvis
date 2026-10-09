@@ -1,128 +1,110 @@
 # Dief Jarvis
 
-Assistente pessoal independente do Painel Dief.
-Versao atual: **1.0.0-alpha.3**, primeira camada de planejamento e execucao.
-Nao e a versao completa 1.0. Ollama e opcional e exige um modelo configurado.
+Assistente pessoal independente do Painel Dief. Versao **1.0.0-alpha.4**.
+Esta e uma alpha, nao a versao final 1.0 nem controle irrestrito do computador.
 
-## O que funciona agora
+## Disponivel
 
-- Central holografica Three.js com paletas ambar/ciano, rotacao e modos
-  economico, pausa e movimento reduzido; renderizacao suspensa ao ocultar.
-- Conversa local com comandos tipados para abrir, fechar e organizar paineis.
-- Tarefas, conclusao, memorias explicitas e briefing de dados locais reais.
-- Auditoria das acoes com hashes encadeados, verificacao e exportacao consentida.
-- Interface desktop, compacta/mobile e modo foco.
-- Aplicativo Electron proprio, sem exigir administrador, com renderer isolado.
-- Ajustes em seis secoes, selecao/teste de voz e movimento explicitamente configuravel.
-- Politicas de acesso com confirmacao, revogacao e pesquisa externa autorizada no EXE.
-- Central de execucoes com plano revisavel, autorizacao, cancelamento, resultados
-  por etapa e recuperacao segura apos interrupcao, sem repetir efeitos externos.
-- Catalogo tipado de oito ferramentas e adaptador Ollama com schema JSON,
-  contexto limitado, prazo de resposta e recusa de saidas incompletas.
-- No EXE: listar/ler arquivos e criar textos sem sobrescrever, em pasta escolhida;
-  exclusao usa a Lixeira do sistema, nunca remove pastas recursivamente.
-- Persistencia browser em IndexedDB; no aplicativo, SQLite com payload protegido
-  pelo safeStorage do Windows. Nao ha sincronizacao Mongo nesta etapa.
+- Holograma Three.js full-bleed, paletas ambar/ciano, movimento e reacao ao audio.
+- Central por voz sem composer; menu recolhido; conversa escrita em outra vista.
+- Escuta local consentida, AudioWorklet + Vosk, nome Jarvis e comandos PT/EN.
+- Sintese neural local Kokoro: Alex em portugues e George em ingles britanico.
+  Aproximacao de estilo, nao voz oficial/clone do ator do filme.
+- Preparacao obrigatoria no EXE para componentes/modelo/executor ausentes.
+  Downloads consentidos, verificados por tamanho/SHA256 e com cancelamento.
+- Assistente Ollama com ferramentas tipadas, observacao/replanejamento, limites,
+  permissao revogavel, confirmacoes sensiveis e historico de resultados reais.
+- Executor Windows UI Automation e navegador agente isolado, sem shell livre.
+- Arquivos em pasta escolhida; criar sem sobrescrever e excluir pela Lixeira.
+- Tarefas, memorias, medidas informadas, status local, clima Open-Meteo e noticias
+  de tecnologia Hacker News na tela, com origem. Sem sensores ficticios.
+- SQLite protegido por safeStorage no EXE; IndexedDB no browser e auditoria local.
 
-## Limites importantes
+## Limites
 
-O chat comum continua deterministico. Em Execucoes, o planejador pode usar
-comandos locais ou Ollama. Nao controla livremente Windows, contas, e-mails ou
-agenda; arquivos ficam restritos a pasta autorizada. Nao existe shell arbitrario.
-Pesquisa no EXE apenas abre o navegador externo, quando explicitamente autorizada;
-nao le resultados nem navega autonomamente nesta etapa.
-Nenhum conector e mostrado como ativo sem implementacao.
-Ollama usa exclusivamente `127.0.0.1:11434` no processo nativo, sem chaves no
-renderer. Ao conectar, ha consentimento para enviar ate 8 mensagens e 20 memorias.
-Use um modelo instalado localmente; nao baixamos modelos nem contratamos servicos.
-O servico Ollama pode ter seu proprio encaminhamento; o Jarvis nao o audita.
-Planos sao sequencias limitadas, nao um agente autonomo de observacao/replanejamento.
-Voz de entrada browser usa Web Speech quando suportado, somente apos consentimento
-de sessao, e pode usar o servico do navegador. No Electron ela fica indisponivel
-ate integrar o motor de voz dedicado. TTS usa as vozes disponiveis no sistema.
+A previa browser executa comandos locais e voz preparada, nao controla Windows
+nem consulta um provedor LLM. Ferramentas nativas exigem o EXE preparado.
+Nao pareamos Painel Dief/Mongo, celular, relogio, calendario ou e-mail.
+Nao ha shell arbitrario, bypass de UAC/CAPTCHA, acesso a senhas, todo o disco ou
+controle de jogos/apps sem UIA. O modo completo vale para ferramentas existentes.
 
-Auditoria local detecta inconsistencias nos registros, mas nao e prova externa,
-assinatura independente nem garantia de resistencia a quem controla o computador.
-A exportacao JSON e legivel: proteja o arquivo. A versao browser nao cifra dados;
-nao use para guardar senhas, tokens ou conteudo sensivel. DPAPI no aplicativo
-tambem nao substitui backup de chaves ou protege contra todo malware local.
+Escuta so inicia apos consentimento. Outra pessoa/TV pode acionar Jarvis; nao ha
+identificacao do falante. Durante a fala/processamento o reconhecimento pausa.
+Use Escape ou parar para interromper; nao ha barge-in por voz nesta alpha.
+O caminho curto de voz da vista de texto usa Web Speech e pode usar servico do
+navegador; o holograma usa Vosk local. Audio capturado nao e salvo.
+
+Dados web/documentos sao nao confiaveis. Confirmacao e limites reduzem riscos,
+nao garantem protecao absoluta. Auditoria nao e prova externa antiviolacao.
+Dados browser/exportacoes JSON sao legiveis; nao guarde segredos na previa.
 
 ## Desenvolvimento
 
-Node >=22.12, npm. No Windows, Electron 44.7.0.
+Node >=22.12, npm. Windows para helper nativo.
 
 ```sh
-npm ci
+npm ci --ignore-scripts
 npm run dev
 npm test
 npm run build
+npm run test:browser
+npm run test:hologram
 ```
 
-Browser local: http://127.0.0.1:5194 .
+Previa: http://127.0.0.1:5194 . Nenhum deploy de producao e feito por esses comandos.
+
+Preparar/testar voz real local (downloads ~167 MB):
+
+```sh
+npm run prepare:voice
+npm run test:synthesis
+npm run test:voice
+npm run test:wake
+```
+
+Os dois ultimos usam modelos reais e audio sintetico, nao microfone fisico.
+CHROME_PATH seleciona o executavel Chromium para os testes Playwright.
+
+Desktop:
 
 ```sh
 npm run setup:desktop
+npm run build:helper
 npm run build
 npm run desktop
-npm run package:portable
 ```
 
-O instalador do runtime Electron e acionado explicitamente, sem aprovar scripts
-de instalacao de dependencias desconhecidas. O build e local e nunca publica
-automaticamente. Releases em `release/`, fora do Git.
+O aplicativo bloqueia uso enquanto faltarem componentes, Ollama, modelo ou
+helper. Instalar Ollama/modelo e autorizar microfone/PC sao operacoes separadas.
+Qwen3:1.7b e sugestao inicial; custos de RAM/disco dependem do modelo escolhido.
+Sem servicos pagos ou envio de audio para TTS em nuvem.
 
-## Comandos locais
+**Nao publicar binarios alpha.4 antes de resolver redistribuicao GPL do EPhone e
+validacao Windows real.** Scripts de pacote usam publish never; arquivos de
+build/teste ficam fora do Git. Instalador/downloads do Painel Dief nao mudaram.
 
-- `mostre minhas tarefas`
-- `crie uma tarefa: revisar o projeto`
-- `lembre que prefiro respostas curtas`
-- `mostre minha memoria`
-- `abra a auditoria`
-- `mostre meu briefing`
-- `feche tarefas`
-- `modo foco` / `restaure a tela`
-- `tema ciano` / `tema ambar`
+## Comandos
 
-Enter envia, Shift+Enter mantem quebra de linha. Ctrl+K foca a conversa.
-Escape interrompe fala. Dados de teste nao sao enviados para o Painel Dief.
+- Jarvis, mostre minhas tarefas.
+- Jarvis, crie uma tarefa: revisar o projeto.
+- Jarvis, lembre que prefiro respostas curtas.
+- Jarvis, hoje eu corri dois quilometros.
+- Jarvis, mostre status.
+- Jarvis, temperatura em Porto Alegre. (EXE + web autorizado)
+- Jarvis, mostre noticias de tecnologia. (EXE + web autorizado)
+- Jarvis, liste janelas. (EXE + controles Windows autorizados)
 
-## Execucoes
+Execucoes permite revisar/autorizar planos. /agente na conversa prepara um plano,
+sem executar. No modo completo + autonomia, observacao e comandos locais podem
+seguir automaticamente; cliques, preenchimentos e alteracoes de arquivos pedem
+confirmacao nativa. Interrupcoes nao repetem efeitos concluidos.
 
-Abra Execucoes e use, por exemplo, `crie uma tarefa: revisar; mostre tarefas`.
-Separador `;` combina comandos locais. `liste pasta`, `leia arquivo notas.txt`,
-`crie arquivo notas.txt: anotacoes`, `exclua arquivo notas.txt` e `pesquise ...`
-exigem os executores/permissoes correspondentes. Pela conversa, `/agente ...`
-abre o mesmo fluxo de planejamento. Nada e executado so por preparar um plano.
+## Documentacao
 
-No EXE, autorize arquivos nos Ajustes e escolha uma pasta em Execucoes.
-No modo restrito/supervisionado, cada etapa externa pede confirmacao nativa.
-Modo completo dispensa esse dialogo por etapa, mas nao a autorizacao inicial do
-plano, nem concede UAC ou ferramentas inexistentes. Cancelamento nao desfaz
-etapas concluidas. Falhas/interrupcoes nao recebem repeticao automatica.
+- [Voz, autonomia, preparo, riscos e licencas](docs/VOZ-E-AUTONOMIA-ALPHA4.md)
+- [Pesquisa de projetos publicos](docs/PESQUISA-AGENTES.md)
+- [Relatorio de testes alpha.4](docs/TEST_REPORT_ALPHA4.md)
 
-## Testes
-
-`npm test`: contrato de comandos, persistencia, concorrencia, falha de gravacao,
-confirmacao, corrupcao de auditoria e politica do broker/protocolo.
-
-`npm run test:browser`: Chromium/Playwright, quatro viewports, pixels/movimento
-do canvas, comandos reais, reload, paineis, tema, tarefas e movimento reduzido.
-Defina `CHROME_PATH` para seu Chromium ou instale o browser Playwright.
-Viewports de celular nao substituem validacao em Safari iOS/Android reais.
-
-`electron . --interface-test` usa `JARVIS_TEST_DATA` para um perfil sintetico,
-sem mostrar janela. Valida SQLite protegido, comando e isolamento do renderer.
-
-## Estrutura
-
-`src/core/`: estado, comandos, hashes e adaptador de dados browser.
-`src/components/`: nucleo 3D e disposicao visual.
-`desktop/`: protocolo local, preload restrito, broker e SQLite.
-`tests/`: regressao funcional/visual e politica nativa.
-`docs/`: arquitetura, referencia e plano completo 1.0.
-
-Nenhum segredo, banco pessoal ou dados de usuario deve entrar neste repositorio.
-
-Permissoes, limites e direcao de voz: `docs/CONTROLE-E-VOZ.md`.
-Pesquisa e decisoes arquiteturais: `docs/PESQUISA-AGENTES.md`.
-Contrato de execucao: `docs/AGENTE-ALPHA3.md`.
+src/core guarda estado e contratos; src/components guarda interface;
+desktop guarda brokers, drivers e SQLite; tests guarda verificacoes.
+Nao incluir segredos, bancos pessoais, capturas de audio ou dados de usuario.

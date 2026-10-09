@@ -166,7 +166,14 @@ export class JarvisEngine {
     return {
       ...state,
       runs: state.runs || [],
-      agent: state.agent || { provider: "local", model: "", workspace: "" },
+      cards: state.cards || [],
+      agent: {
+        provider: "local",
+        model: "",
+        workspace: "",
+        autonomy: false,
+        ...state.agent,
+      },
       settings: {
         ...VOICE_DEFAULTS,
         ...state.settings,
@@ -207,6 +214,45 @@ export class JarvisEngine {
         state.agent.model = action.provider === "ollama" ? action.model : "";
         detail = `Planejador ${state.agent.provider}`;
         break;
+      case "agent.autonomy":
+        if (
+          typeof action.value !== "boolean" ||
+          (action.value && action.confirmed !== true)
+        )
+          throw Error("Autorize a autonomia explicitamente.");
+        state.agent.autonomy = action.value;
+        detail = action.value
+          ? "Autonomia de leitura autorizada; acoes sensiveis mantem confirmacao"
+          : "Autonomia revogada";
+        break;
+      case "screen.card":
+        state.cards.unshift({
+          id,
+          title: textValue(action.title, 100),
+          value: textValue(action.value, 2000),
+          unit: typeof action.unit === "string" ? action.unit : "",
+          source: textValue(action.source, 2000),
+          at,
+        });
+        state.cards = state.cards.slice(0, 6);
+        detail = "Dado com origem mostrado no holograma";
+        break;
+      case "screen.card.remove":
+        state.cards = state.cards.filter((card) => card.id !== action.id);
+        detail = "Dado retirado da tela";
+        break;
+      case "assistant.record": {
+        const content = textValue(action.content),
+          answer = textValue(action.reply);
+        state.messages.push(
+          { id: this.id(), role: "user", content, at },
+          { id: this.id(), role: "jarvis", content: answer, at },
+        );
+        state.messages = state.messages.slice(-200);
+        reply = answer;
+        detail = "Resposta do assistente registrada";
+        break;
+      }
       case "agent.workspace":
         state.agent.workspace =
           action.path === "" ? "" : textValue(action.path, 1000);
@@ -316,6 +362,7 @@ export class JarvisEngine {
             createdAt: at,
           });
           step.output = "Tarefa salva.";
+          openPanel(state, "tasks");
         } else if (step.tool === "memory.create") {
           if (state.memories.length >= 1000) throw Error("Limite de memorias.");
           state.memories.unshift({
@@ -325,9 +372,34 @@ export class JarvisEngine {
             createdAt: at,
           });
           step.output = "Memoria salva.";
+          openPanel(state, "memory");
         } else if (step.tool === "screen.open") {
           openPanel(state, step.args.panel);
+          if (
+            state.settings.presentation === "voice" &&
+            ["settings", "audit", "connections"].includes(step.args.panel)
+          )
+            state.view = step.args.panel;
           step.output = `${PANELS[step.args.panel]} aberto.`;
+        } else if (
+          step.tool === "screen.metric" ||
+          step.tool === "system.status"
+        ) {
+          const metric = step.tool === "screen.metric";
+          state.cards.unshift({
+            id,
+            title: metric ? step.args.title : "Estado local",
+            value: metric
+              ? step.args.value
+              : `${state.tasks.filter((task) => !task.done).length} tarefas abertas / ${state.memories.length} memorias`,
+            unit: metric ? step.args.unit : "",
+            source: metric
+              ? "Informado na conversa; nao recebido de celular ou relogio"
+              : "Workspace local do aplicativo",
+            at,
+          });
+          state.cards = state.cards.slice(0, 6);
+          step.output = "Dado mostrado na tela com sua origem.";
         } else throw Error("Ferramenta externa exige executor nativo.");
         step.status = "completed";
         run.updatedAt = at;

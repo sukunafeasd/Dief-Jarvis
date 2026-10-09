@@ -70,7 +70,7 @@ export class AgentController {
       throw Error("Esta ferramenta requer o EXE, nao o navegador.");
     if (tool.permission && !state.settings.access[tool.permission])
       throw Error(
-        `Autorize ${tool.permission === "files" ? "arquivos" : "pesquisa web"} nos ajustes.`,
+        `Autorize ${tool.permission === "files" ? "arquivos" : tool.permission === "desktop" ? "controle do PC" : "pesquisa web"} nos ajustes.`,
       );
     if (tool.permission === "files" && !state.agent.workspace)
       throw Error("Selecione uma pasta autorizada antes de usar arquivos.");
@@ -110,7 +110,11 @@ export class AgentController {
           if (!TOOLS[step.tool].native) {
             await this.commit({ type: "agent.local", id, index });
           } else {
-            if (current.settings.access.mode !== "full") {
+            if (
+              current.settings.access.mode !== "full" ||
+              TOOLS[step.tool].risk === "sensitive" ||
+              ["workspace.create", "workspace.trash"].includes(step.tool)
+            ) {
               if (!(await this.options.approve?.(step)))
                 throw Error("Operacao nao autorizada pelo operador.");
             }
@@ -178,6 +182,26 @@ export class AgentController {
         error: operation.abort.signal.aborted
           ? "Execucao interrompida pelo operador. Etapas concluidas nao foram desfeitas."
           : error.message.slice(0, 1000),
+      });
+    } finally {
+      if (this.active === operation) this.active = null;
+    }
+  }
+  async prepare(goal, plan) {
+    if (this.active) throw Error("Uma execucao ja esta ativa.");
+    const validated = validatePlan(plan);
+    const operation = { id: null, abort: new AbortController() };
+    this.active = operation;
+    try {
+      const current = await this.engine.read();
+      for (const step of validated.steps) this.check(step, current);
+      operation.abort.signal.throwIfAborted();
+      const created = await this.commit({ type: "agent.create", goal });
+      operation.id = created.state.runs[0].id;
+      return await this.commit({
+        type: "agent.plan",
+        id: operation.id,
+        plan: validated,
       });
     } finally {
       if (this.active === operation) this.active = null;

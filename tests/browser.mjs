@@ -25,6 +25,9 @@ try {
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(base);
   await page.locator("canvas").waitFor();
+  assert.equal(await page.locator(".command-form").count(), 0, "voice hologram has no composer");
+  await page.getByRole("button", { name: "Menu do Jarvis", exact: true }).click();
+  await page.getByRole("button", { name: "Modo painel", exact: true }).click();
   await page.waitForTimeout(450);
   for (const [name, width, height] of [
     ["desktop", 1440, 900],
@@ -101,9 +104,7 @@ try {
     await page
       .getByRole("button", { name: "Enviar comando", exact: true })
       .click();
-    await page.waitForFunction(
-      () => document.querySelector(".last-response p")?.textContent?.length > 0,
-    );
+    await page.waitForFunction(() => document.querySelector(".app-shell")?.getAttribute("aria-busy") === "false" && document.querySelector(".command-form textarea")?.value === "");
     await page.waitForTimeout(100);
   }
   await command("crie uma tarefa: Revisar interface");
@@ -131,7 +132,7 @@ try {
     .getByText("Revisar interface", { exact: true })
     .waitFor();
   await page.getByRole("button", { name: "Mover Memoria para cima" }).click();
-  await page.waitForTimeout(100);
+  await page.waitForFunction(() => document.querySelector(".tool-window")?.getAttribute("data-panel") === "memory");
   assert.equal(
     await page.locator(".tool-window").first().getAttribute("data-panel"),
     "memory",
@@ -139,7 +140,7 @@ try {
   await page
     .getByRole("button", { name: "Fechar Memoria", exact: true })
     .click();
-  await page.waitForTimeout(100);
+  await page.locator('[data-panel="memory"]').waitFor({ state: "detached" });
   assert.equal(await page.locator('[data-panel="memory"]').count(), 0);
   await command("mostre auditoria");
   await page.locator('[data-panel="audit"]').waitFor();
@@ -149,7 +150,7 @@ try {
   await page
     .getByRole("button", { name: "Sair do modo foco", exact: true })
     .click();
-  await page.waitForTimeout(100);
+  await page.locator(".app-shell.focus-mode").waitFor({ state: "detached" });
   await command("tema ciano");
   await page.waitForTimeout(150);
   assert.equal(await page.locator(".theme-cyan").count(), 1);
@@ -161,7 +162,7 @@ try {
   await page
     .getByRole("button", { name: "Concluir Revisar interface" })
     .click();
-  await page.waitForTimeout(100);
+  await page.getByRole("button", { name: "Concluir Revisar interface" }).waitFor({ state: "detached" });
   await page.getByRole("button", { name: "Concluidas", exact: true }).click();
   await page.getByText("Revisar interface", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Excluir Revisar interface" }).click();
@@ -306,9 +307,10 @@ try {
     .locator(".modal")
     .getByRole("button", { name: "Confirmar", exact: true })
     .click();
-  await page.locator(".agent-run.completed").waitFor();
+  const completedRun = page.locator(".agent-run.completed").filter({ hasText: "Agent browser test" });
+  await completedRun.waitFor();
   assert.equal(
-    await page.locator(".agent-run.completed li.completed").count(),
+    await completedRun.locator("li.completed").count(),
     2,
   );
   for (const [width, height, name] of [
@@ -328,9 +330,9 @@ try {
     await page.screenshot({ path: `artifacts/${name}.png`, fullPage: true });
   }
   await page.reload();
-  await page.locator(".agent-run.completed").waitFor();
+  await completedRun.waitFor();
   assert.equal(
-    await page.locator(".agent-run.completed li.completed").count(),
+    await completedRun.locator("li.completed").count(),
     2,
     "run history persisted",
   );
