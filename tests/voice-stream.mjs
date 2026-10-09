@@ -5,7 +5,10 @@ import { chromium } from "playwright";
 import { ComponentInstaller } from "../desktop/components.mjs";
 if (!(await new ComponentInstaller().status()).ready)
   throw Error("Prepare os componentes de voz primeiro.");
-const server = await createServer({ server: { host: "127.0.0.1", port: 0 } });
+const server = await createServer({
+  cacheDir: "node_modules/.vite/test-stream",
+  server: { host: "127.0.0.1", port: 0 },
+});
 let browser;
 try {
   await server.listen();

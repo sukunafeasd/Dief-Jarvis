@@ -65,3 +65,23 @@ sandbox, pode acessar a rede e arquivos fora da area escolhida. Nao ha garantia
 de detectar todo alto risco ou de interromper todo processo destacado. Campos
 web protegidos e UAC permanecem manuais. Fonte/licencas GPL ainda bloqueiam a
 distribuicao binaria. Alpha.3 antiga nao contem estas mudancas.
+
+## Correcao da previa branca / 2026-10-09
+
+- Reproduzido na aba real do navegador interno: HTML 200, mas src/main.jsx
+  retornava 504 Outdated Request. O Vite antigo estava com ambiente de
+  transformacao fechado/reiniciando; apenas servir HTML nao provava saude.
+- Encontrado cache de otimizacao compartilhado entre servidores de testes e
+  desenvolvimento. Separados desenvolvimento e cada suite para evitar colisao.
+- O processo antigo nao foi encerrado: a tentativa de parar/reiniciar foi
+  bloqueada pelo ambiente. Nova previa iniciada normalmente na porta livre 5196.
+  Nao houve exclusao de IndexedDB, bancos ou dados pessoais. Dados de navegador
+  da origem 5194 continuam naquela origem; a nova porta e uma origem distinta.
+- Tela inicial escura e guard estatico de carregamento, com mensagem e botao
+  Recarregar em falha/demora. Bootstrap captura falha do import antes do React.
+- npm run test:startup: aprovado; outro servidor de testes nao derruba o
+  servidor ativo; import bloqueado mostra recuperacao, recarregar restaura UI.
+- npm test 79/79, test:browser e build aprovados novamente. Arquivo publico
+  startup-guard.js conferido no dist e no verificador de pacotes (sem novo EXE).
+- Confirmado na aba real do usuario: holograma visivel, src/main.jsx HTTP 200,
+  voz preparada com nove componentes. Captura artifacts/preview-restored.png.

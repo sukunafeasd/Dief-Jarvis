@@ -13,6 +13,7 @@
     "test": "node --test tests/*.test.mjs",
     "test:browser": "node tests/browser.mjs",
     "test:hologram": "node tests/hologram-browser.mjs",
+    "test:startup": "node tests/preview-startup.mjs",
     "test:voice": "node tests/voice-browser.mjs",
     "test:wake": "node tests/wake-worklet.mjs",
     "test:synthesis": "node tests/synthesize-voice.mjs",

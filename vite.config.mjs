@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { previewVoicePlugin } from "./desktop/preview-voice.mjs";
 export default defineConfig({
+  cacheDir: "node_modules/.vite/development",
   plugins: [react(), previewVoicePlugin()],
   base: "./",
   server: {

@@ -17,6 +17,7 @@ const files = [
     .map((name) => `src/core/${name}`),
   "dist/index.html",
   "dist/audio-capture.worklet.js",
+  "dist/startup-guard.js",
   ...fs.readdirSync("dist/assets").map((name) => `dist/assets/${name}`),
 ];
 for (const name of files)

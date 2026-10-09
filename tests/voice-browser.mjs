@@ -9,7 +9,10 @@ if (!status.ready) {
   );
   process.exit(0);
 }
-const server = await createServer({ server: { host: "127.0.0.1", port: 0 } });
+const server = await createServer({
+  cacheDir: "node_modules/.vite/test-voice",
+  server: { host: "127.0.0.1", port: 0 },
+});
 let browser;
 try {
   await server.listen();

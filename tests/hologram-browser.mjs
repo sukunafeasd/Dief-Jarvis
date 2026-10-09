@@ -9,7 +9,10 @@ const { observeDOM, actDOM } = createRequire(import.meta.url)(
   "../desktop/web-session.cjs",
 );
 await fs.mkdir("artifacts", { recursive: true });
-const server = await createServer({ server: { host: "127.0.0.1", port: 0 } });
+const server = await createServer({
+  cacheDir: "node_modules/.vite/test-hologram",
+  server: { host: "127.0.0.1", port: 0 },
+});
 let browser;
 try {
   await server.listen();
@@ -97,16 +100,34 @@ try {
     for (const card of await page.locator(".holo-data").all()) {
       const bounds = await card.boundingBox();
       const close = await card.locator("header button").boundingBox();
-      assert.ok(close.x >= bounds.x && close.x + close.width <= bounds.x + bounds.width + 1,
-        `${name}: close control stays inside its card`);
-      assert.equal(await card.locator("footer").evaluate((el) => el.scrollWidth > el.clientWidth + 1), false,
-        `${name}: data source stays inside its card`);
+      assert.ok(
+        close.x >= bounds.x &&
+          close.x + close.width <= bounds.x + bounds.width + 1,
+        `${name}: close control stays inside its card`,
+      );
+      assert.equal(
+        await card
+          .locator("footer")
+          .evaluate((el) => el.scrollWidth > el.clientWidth + 1),
+        false,
+        `${name}: data source stays inside its card`,
+      );
     }
-    const canvas = page.locator("canvas"), firstBounds = await canvas.boundingBox();
+    const canvas = page.locator("canvas"),
+      firstBounds = await canvas.boundingBox();
     await page.waitForTimeout(200);
     const settledBounds = await canvas.boundingBox();
-    for (const key of ["x", "y", "width", "height"]) assert.ok(Math.abs(firstBounds[key] - settledBounds[key]) < 1, `${name}: canvas ${key} remains stable`);
-    const png = PNG.sync.read(Buffer.from(await canvas.evaluate((el) => el.toDataURL().split(",")[1]), "base64"));
+    for (const key of ["x", "y", "width", "height"])
+      assert.ok(
+        Math.abs(firstBounds[key] - settledBounds[key]) < 1,
+        `${name}: canvas ${key} remains stable`,
+      );
+    const png = PNG.sync.read(
+      Buffer.from(
+        await canvas.evaluate((el) => el.toDataURL().split(",")[1]),
+        "base64",
+      ),
+    );
     let colored = 0;
     for (let i = 0; i < png.data.length; i += 4)
       if (png.data[i] > 90 && png.data[i + 1] > 50) colored++;

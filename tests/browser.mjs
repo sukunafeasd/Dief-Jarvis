@@ -5,7 +5,10 @@ import { chromium } from "playwright";
 import { PNG } from "pngjs";
 
 await mkdir("artifacts", { recursive: true });
-const server = await createServer({ server: { host: "127.0.0.1", port: 0 } });
+const server = await createServer({
+  cacheDir: "node_modules/.vite/test-browser",
+  server: { host: "127.0.0.1", port: 0 },
+});
 let browser;
 try {
   await server.listen();
@@ -25,8 +28,14 @@ try {
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(base);
   await page.locator("canvas").waitFor();
-  assert.equal(await page.locator(".command-form").count(), 0, "voice hologram has no composer");
-  await page.getByRole("button", { name: "Menu do Jarvis", exact: true }).click();
+  assert.equal(
+    await page.locator(".command-form").count(),
+    0,
+    "voice hologram has no composer",
+  );
+  await page
+    .getByRole("button", { name: "Menu do Jarvis", exact: true })
+    .click();
   await page.getByRole("button", { name: "Modo painel", exact: true }).click();
   await page.waitForTimeout(450);
   for (const [name, width, height] of [
@@ -48,7 +57,12 @@ try {
     assert.ok(
       form.width > 250 && form.x >= 0 && form.x + form.width <= width + 1,
     );
-    const buffer = Buffer.from(await page.locator("canvas").evaluate((el) => el.toDataURL().split(",")[1]), "base64");
+    const buffer = Buffer.from(
+      await page
+        .locator("canvas")
+        .evaluate((el) => el.toDataURL().split(",")[1]),
+      "base64",
+    );
     const png = PNG.sync.read(buffer);
     let colored = 0;
     for (let i = 0; i < png.data.length; i += 4)
@@ -104,7 +118,12 @@ try {
     await page
       .getByRole("button", { name: "Enviar comando", exact: true })
       .click();
-    await page.waitForFunction(() => document.querySelector(".app-shell")?.getAttribute("aria-busy") === "false" && document.querySelector(".command-form textarea")?.value === "");
+    await page.waitForFunction(
+      () =>
+        document.querySelector(".app-shell")?.getAttribute("aria-busy") ===
+          "false" &&
+        document.querySelector(".command-form textarea")?.value === "",
+    );
     await page.waitForTimeout(100);
   }
   await command("crie uma tarefa: Revisar interface");
@@ -132,7 +151,11 @@ try {
     .getByText("Revisar interface", { exact: true })
     .waitFor();
   await page.getByRole("button", { name: "Mover Memoria para cima" }).click();
-  await page.waitForFunction(() => document.querySelector(".tool-window")?.getAttribute("data-panel") === "memory");
+  await page.waitForFunction(
+    () =>
+      document.querySelector(".tool-window")?.getAttribute("data-panel") ===
+      "memory",
+  );
   assert.equal(
     await page.locator(".tool-window").first().getAttribute("data-panel"),
     "memory",
@@ -162,7 +185,9 @@ try {
   await page
     .getByRole("button", { name: "Concluir Revisar interface" })
     .click();
-  await page.getByRole("button", { name: "Concluir Revisar interface" }).waitFor({ state: "detached" });
+  await page
+    .getByRole("button", { name: "Concluir Revisar interface" })
+    .waitFor({ state: "detached" });
   await page.getByRole("button", { name: "Concluidas", exact: true }).click();
   await page.getByText("Revisar interface", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Excluir Revisar interface" }).click();
@@ -307,12 +332,11 @@ try {
     .locator(".modal")
     .getByRole("button", { name: "Confirmar", exact: true })
     .click();
-  const completedRun = page.locator(".agent-run.completed").filter({ hasText: "Agent browser test" });
+  const completedRun = page
+    .locator(".agent-run.completed")
+    .filter({ hasText: "Agent browser test" });
   await completedRun.waitFor();
-  assert.equal(
-    await completedRun.locator("li.completed").count(),
-    2,
-  );
+  assert.equal(await completedRun.locator("li.completed").count(), 2);
   for (const [width, height, name] of [
     [1440, 900, "agent"],
     [393, 851, "agent-mobile"],

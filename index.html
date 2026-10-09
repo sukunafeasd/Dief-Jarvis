@@ -2,11 +2,78 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
     <meta name="theme-color" content="#080b0e" />
-    <meta name="description" content="Dief Jarvis - central de comando pessoal" />
+    <meta
+      name="description"
+      content="Dief Jarvis - central de comando pessoal"
+    />
     <title>Dief Jarvis</title>
     <link rel="icon" type="image/png" href="/jarvis-mark.png" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #080b0e;
+        color: #e0e7ea;
+      }
+      .boot-screen {
+        min-height: 100vh;
+        min-height: 100dvh;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 16px;
+        padding: 24px;
+        box-sizing: border-box;
+        font-family: system-ui, sans-serif;
+        text-align: center;
+      }
+      .boot-screen h1 {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 500;
+      }
+      .boot-screen h1 span {
+        color: #ffb34a;
+      }
+      .boot-screen p {
+        margin: 0;
+        max-width: 360px;
+        line-height: 1.5;
+        font-size: 14px;
+        color: #a7b4bb;
+      }
+      .boot-screen button {
+        padding: 12px 20px;
+        border: 1px solid #ffb34a;
+        border-radius: 5px;
+        color: #ffb34a;
+        background: #141a1e;
+        font: inherit;
+        cursor: pointer;
+      }
+      .boot-screen button:focus-visible {
+        outline: 2px solid #e0e7ea;
+        outline-offset: 4px;
+      }
+      .boot-screen button[hidden] {
+        display: none;
+      }
+    </style>
   </head>
-  <body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body>
+  <body>
+    <div id="root">
+      <section class="boot-screen" aria-label="Inicializacao do Jarvis">
+        <h1>Dief <span>Jarvis.</span></h1>
+        <p id="boot-status" role="status">Preparando Jarvis...</p>
+        <button id="boot-reload" type="button" hidden>Recarregar</button>
+      </section>
+    </div>
+    <script type="module" src="/startup-guard.js"></script>
+    <script type="module" src="/src/bootstrap.mjs"></script>
+  </body>
 </html>
