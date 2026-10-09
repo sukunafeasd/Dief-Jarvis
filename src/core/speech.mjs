@@ -1,3 +1,28 @@
+export function pronunciationText(text) {
+  const words = {
+    nao: "não",
+    voce: "você",
+    voces: "vocês",
+    configuracao: "configuração",
+    disposicao: "disposição",
+    previsao: "previsão",
+    portugues: "português",
+    autorizacao: "autorização",
+    conexoes: "conexões",
+    execucoes: "execuções",
+    memoria: "memória",
+    memorias: "memórias",
+    horario: "horário",
+    quilometros: "quilômetros",
+    amanha: "amanhã",
+    informacoes: "informações",
+    instrucoes: "instruções",
+  };
+  return text.replace(
+    /\b[a-z]+\b/gi,
+    (word) => words[word.toLowerCase()] || word,
+  );
+}
 export function speechChunks(text, limit = 140) {
   if (
     typeof text !== "string" ||

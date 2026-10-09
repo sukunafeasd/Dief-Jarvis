@@ -3,10 +3,8 @@ export function wakeCommand(text) {
   if (typeof text !== "string") return null;
   const match = text
     .trim()
-    .match(
-      /^(?:oi\s+|ei\s+|hey\s+|dief\s+)?(?:jarvis|javis|jarves|jarvi|javes)[,\s.!?:-]*(.*)$/i,
-    );
-  return match ? match[1].trim() : null;
+    .match(/\b(?:jarvis|javis|jarves|jarvi|javes)\b[,\s.!?:-]*(.*)$/i);
+  return match ? match[1].trim() || text.slice(0, match.index).trim() : null;
 }
 export async function loadSpeechModel(modelUrl, signal) {
   signal?.throwIfAborted();
@@ -82,6 +80,18 @@ export class WakeListener {
         return;
       }
       this.stream = stream;
+      stream.getAudioTracks().forEach((track) => {
+        track.addEventListener(
+          "ended",
+          () => {
+            if (this.enabled && generation === this.generation) {
+              this.stop();
+              this.onError("O acesso ao microfone foi encerrado.");
+            }
+          },
+          { once: true },
+        );
+      });
       const english = language === "en-GB";
       const model = await loadSpeechModel(
         english ? this.keywordUrl : this.modelUrl,
@@ -204,6 +214,17 @@ export class WakeListener {
     this.followup = setTimeout(() => {
       if (this.enabled) this.onState("listening");
     }, 8000);
+  }
+  arm() {
+    if (!this.enabled || this.muted || !this.recognizer) return;
+    this.wakePending = false;
+    this.awaiting = Date.now() + 12000;
+    this.onState("addressed");
+    clearTimeout(this.followup);
+    this.followup = setTimeout(() => {
+      this.awaiting = 0;
+      if (this.enabled) this.onState("listening");
+    }, 12000);
   }
   stop() {
     this.enabled = false;

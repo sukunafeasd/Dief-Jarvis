@@ -1,4 +1,8 @@
 import {
+  conversationFacts,
+  rememberConversation,
+} from "./conversation-memory.mjs";
+import {
   PANELS,
   VIEWS,
   THEMES,
@@ -31,6 +35,32 @@ function openPanel(state, key) {
 }
 function interpret(state, content, id, at) {
   const text = normalize(content);
+  const facts = conversationFacts(content);
+  if (facts.length && state.settings.autoMemory !== false)
+    return {
+      status: "completed",
+      message: facts.every((fact) =>
+        state.memories.some(
+          (memory) => normalize(memory.text) === normalize(fact.text),
+        ),
+      )
+        ? "Entendido. Isso fica no meu nucleo para nossas proximas conversas."
+        : "O nucleo atingiu seu limite de memorias. Confira o que foi guardado em Nucleo e registros.",
+      capability: "memory.create",
+    };
+  if (/onde (?:eu )?moro|(?:qual|como) (?:e )?(?:o )?meu nome/.test(text)) {
+    const identity = state.memories.find(
+      (item) =>
+        item.automaticKey ===
+        (/moro/.test(text) ? "identity:city" : "identity:name"),
+    );
+    if (identity)
+      return {
+        status: "completed",
+        message: `Voce me contou: ${identity.text}.`,
+        capability: "memory.read",
+      };
+  }
   const panel = panelFrom(text);
   if (
     /^(?:jarvis[, ]*)?(?:crie|criar|adicione|adicionar|nova|novo)\s+(?:uma\s+)?tarefa\b/.test(
@@ -177,6 +207,9 @@ export class JarvisEngine {
       settings: {
         ...VOICE_DEFAULTS,
         ...state.settings,
+        ...(state.settings.displayPresetVersion === undefined
+          ? { motionMode: "always" }
+          : {}),
         ...(state.settings.voicePresetVersion === undefined &&
         state.settings.voiceProfile === "pm_alex"
           ? { voiceProfile: "dief_pt" }
@@ -259,6 +292,12 @@ export class JarvisEngine {
         state.messages = state.messages.slice(-200);
         reply = answer;
         detail = "Resposta do assistente registrada";
+        if (action.continuation !== true) {
+          const learned = rememberConversation(state, content, at, () =>
+            this.id(),
+          );
+          if (learned) detail += `; ${learned} fato(s) guardado(s) no nucleo`;
+        }
         break;
       }
       case "agent.workspace":
@@ -493,6 +532,9 @@ export class JarvisEngine {
       }
       case "chat.send": {
         const content = textValue(action.content);
+        const learned = rememberConversation(state, content, at, () =>
+          this.id(),
+        );
         const result = interpret(state, content, id, at);
         reply = result.message;
         status = result.status;
@@ -503,6 +545,7 @@ export class JarvisEngine {
         );
         state.messages = state.messages.slice(-200);
         detail = "Comando recebido na conversa";
+        if (learned) detail += `; ${learned} fato(s) guardado(s) no nucleo`;
         break;
       }
       case "screen.view":

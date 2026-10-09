@@ -1,4 +1,4 @@
-.voice-only .navigation {
+.app-shell.voice-only .navigation {
   position: fixed;
   left: 0;
   top: 0;
@@ -11,7 +11,7 @@
 .voice-only .navigation.mobile-open {
   transform: translateX(0);
 }
-.voice-only .nav-close {
+.app-shell.voice-only .nav-close {
   display: grid;
 }
 .startup-dialog {
@@ -71,39 +71,102 @@
 .voice-only .core-hud-frame {
   display: none;
 }
-.app-shell.voice-only .core-identifier {
-  display: none;
-}
-.app-shell.voice-only .core-heading {
-  top: 12%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 240px;
-  text-align: center;
-  pointer-events: none;
-}
-.app-shell.voice-only .core-heading > .eyebrow {
-  display: none;
-}
-.app-shell.voice-only .core-heading h1 {
-  font-size: 32px;
-  white-space: nowrap;
-  margin: 0 0 12px;
-}
-.app-shell.voice-only .core-heading h1 br {
-  display: none;
-}
-.app-shell.voice-only .core-heading h1 span {
-  margin-left: 8px;
-}
-.app-shell.voice-only .core-phase {
-  justify-content: center;
-}
 .app-shell.voice-only .hologram-stage {
   inset: 0;
 }
 .voice-only .main-shell {
   width: 100%;
+}
+.jarvis-header {
+  position: relative;
+  height: 76px;
+  flex: 0 0 76px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 8;
+}
+.jarvis-header h1 {
+  margin: 0;
+  color: var(--accent);
+  font-size: 19px;
+  font-weight: 500;
+  text-shadow: 0 0 24px var(--accent-soft);
+}
+.jarvis-header > div {
+  position: absolute;
+  right: max(18px, env(safe-area-inset-right));
+  display: flex;
+  gap: 8px;
+}
+.jarvis-header .icon-button {
+  width: 44px;
+  height: 44px;
+}
+.hologram {
+  cursor: pointer;
+  touch-action: none;
+  transition:
+    filter 0.65s ease,
+    opacity 0.65s ease;
+}
+.hologram.asleep {
+  opacity: 0.62;
+  filter: saturate(0.7);
+}
+.hologram.awake {
+  opacity: 1;
+  filter: saturate(1.12);
+}
+.hologram:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -8px;
+}
+.hologram-stage[hidden] {
+  display: none;
+}
+.record-tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+.record-tabs button {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  min-height: 44px;
+  padding: 10px 16px;
+}
+.record-tabs button[aria-selected="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.voice-only .full-view {
+  padding-top: 22px;
+}
+.voice-only .view-header h1 {
+  font-size: 24px;
+}
+.voice-only .command-dock {
+  flex: 0 0 auto;
+}
+.voice-only .workspace {
+  min-height: 0;
+}
+@media (max-width: 550px) {
+  .jarvis-header {
+    height: 64px;
+    flex-basis: 64px;
+  }
+  .jarvis-header h1 {
+    font-size: 17px;
+  }
+  .record-tabs button {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
 }
 .voice-only .workspace {
   border: 0;
@@ -119,83 +182,12 @@
   min-width: 0;
   pointer-events: auto;
 }
-.holo-top {
-  position: absolute;
-  top: 24px;
-  left: 30px;
-  right: 28px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.holo-top > div {
-  display: flex;
-  gap: 10px;
-}
-.holo-signature {
-  font-size: 11px;
-  color: var(--muted);
-}
-.holo-bottom {
-  position: absolute;
-  bottom: max(26px, env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(660px, calc(100% - 40px));
-  text-align: center;
-}
-.holo-caption {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  color: #dae2e4;
-  line-height: 1.6;
-  font-size: 14px;
-  max-height: 104px;
-  overflow-y: auto;
-  pointer-events: auto;
-  text-shadow: 0 1px 4px #000;
-}
-.holo-voice-controls {
-  margin-top: 22px;
-  display: flex;
-  gap: 26px;
-  align-items: center;
-  justify-content: center;
-}
-.holo-mic {
-  width: 66px;
-  height: 66px;
-  border-radius: 50%;
-  border: 1px solid var(--accent);
-  color: var(--accent);
-  background: #101619e6;
-  display: grid;
-  place-items: center;
-  box-shadow: 0 0 calc(8px + var(--voice-level) * 35px) var(--accent-soft);
-  transition:
-    box-shadow 0.12s linear,
-    background 0.15s;
-}
-.holo-mic:hover,
-.holo-mic.active {
-  background: var(--accent-soft);
-}
-.holo-mic:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 4px;
-}
-.holo-listening-state {
-  display: inline-block;
-  margin-top: 12px;
-  color: var(--muted);
-  font-size: 11px;
-}
 .holo-cards {
   position: absolute;
   top: 110px;
   right: 30px;
   width: min(270px, 30%);
-  max-height: calc(100% - 310px);
+  max-height: calc(100% - 140px);
   overflow: auto;
   display: grid;
   gap: 14px;
@@ -272,6 +264,22 @@
   padding: 10px 14px;
   font-size: 12px;
 }
+.holo-authorization {
+  position: absolute;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(540px, calc(100% - 36px));
+  pointer-events: auto;
+}
+.holo-console:has(.holo-authorization) .holo-cards {
+  max-height: calc(100% - 210px);
+}
+@media (max-width: 700px) and (min-height: 551px) {
+  .holo-console:has(.holo-authorization) .holo-cards {
+    bottom: 100px;
+  }
+}
 .holo-pending span {
   margin-left: 12px;
   color: var(--muted);
@@ -309,17 +317,9 @@
   }
 }
 @media (max-width: 700px) {
-  .app-shell.voice-only .core-heading h1 {
-    font-size: 26px;
-  }
-  .holo-top {
-    top: 14px;
-    left: 18px;
-    right: 14px;
-  }
   .holo-cards {
     top: auto;
-    bottom: 245px;
+    bottom: max(24px, env(safe-area-inset-bottom));
     left: 18px;
     right: 18px;
     width: auto;
@@ -343,25 +343,8 @@
     font-size: 26px;
     margin: 8px 0;
   }
-  .holo-caption {
-    font-size: 13px;
-    max-height: 80px;
-  }
-  .holo-bottom {
-    bottom: max(20px, env(safe-area-inset-bottom));
-  }
 }
 @media (max-height: 550px) {
-  .holo-caption {
-    max-height: 46px;
-  }
-  .holo-voice-controls {
-    margin-top: 10px;
-  }
-  .holo-mic {
-    width: 48px;
-    height: 48px;
-  }
   .holo-cards {
     max-height: 130px;
     top: 65px;
@@ -380,25 +363,12 @@
     min-width: 0;
     width: auto;
   }
-  .app-shell.voice-only .core-heading {
-    left: 18px;
-    top: 80px;
-    transform: none;
-    width: 150px;
-    text-align: left;
-  }
-  .app-shell.voice-only .core-heading h1 {
-    font-size: 21px;
-  }
-  .app-shell.voice-only .core-phase {
-    justify-content: flex-start;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .holo-data {
+  .app-shell:not(.motion-always) .holo-data {
     animation: none;
   }
-  .voice-only .navigation {
+  .app-shell.voice-only:not(.motion-always) .navigation {
     transition: none;
   }
 }

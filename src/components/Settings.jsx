@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { VOICE_DEFAULTS, ACCESS_DEFAULTS } from "../core/model.mjs";
 import "../settings.css";
+import AzureSettings from "./AzureSettings.jsx";
 
 const SECTIONS = [
   ["profile", User, "Perfil"],
@@ -266,16 +267,33 @@ export default function Settings({
         {section === "voice" && (
           <>
             {toggle("voice", "Resposta falada")}
+            {toggle("listenOnLaunch", "Escutar ao abrir, se ja autorizado")}
+            {toggle("listenInBackground", "Continuar escutando ao minimizar")}
+            <p className="setting-note">
+              Depois da autorizacao do microfone, a deteccao de Jarvis acontece
+              localmente. Toque no holograma ou pressione Escape para
+              interromper.
+            </p>
             {toggle("sound", "Efeitos sonoros")}
             <label className="setting-row">
               <span>Motor da voz</span>
               <select
                 aria-label="Motor da voz"
                 value={options.voiceEngine}
-                onChange={(event) => save({ voiceEngine: event.target.value })}
+                onChange={(event) =>
+                  save({
+                    voiceEngine: event.target.value,
+                    ...(event.target.value === "azure"
+                      ? { voiceLang: "pt-BR" }
+                      : {}),
+                  })
+                }
               >
                 <option value="neural">Neural local / Kokoro</option>
                 <option value="system">Voz do sistema</option>
+                <option value="azure">
+                  Azure Speech / configuracao necessaria
+                </option>
               </select>
             </label>
             {options.voiceEngine === "neural" && (
@@ -303,10 +321,14 @@ export default function Settings({
                 </select>
               </label>
             )}
+            {options.voiceEngine === "azure" && (
+              <AzureSettings options={options} save={save} />
+            )}
             <label className="setting-row">
               <span>Idioma da voz</span>
               <select
                 aria-label="Idioma da voz"
+                disabled={options.voiceEngine === "azure"}
                 value={options.voiceLang}
                 onChange={(event) =>
                   save({
@@ -374,18 +396,19 @@ export default function Settings({
               <Mic size={18} />
               <p>
                 Perfis licenciados de voz, nao a voz oficial ou clonada do
-                filme. Escuta continua somente apos consentimento nesta sessao.
-                Vozes audiveis de outras pessoas tambem podem acionar o nome
-                Jarvis.
+                filme. Toque no nucleo para ouvir ou adormecer. O microfone
+                precisa estar autorizado no navegador ou Windows. Vozes audiveis
+                de outras pessoas tambem podem acionar o nome Jarvis.
               </p>
             </div>
             <div className="voice-direction">
               <span className="eyebrow">PERFIS LOCAIS</span>
-              <strong>George / ingles britanico. Alex / portugues.</strong>
+              <strong>Dief / portugues. George / ingles britanico.</strong>
               <p>
                 Sintese executada no dispositivo, sem cobrar por fala ou enviar
-                texto a um servico de voz. O perfil britanico foi escolhido como
-                referencia de estilo; semelhanca com o filme e subjetiva.
+                texto a um servico de voz quando Kokoro esta selecionado.
+                Pronuncia revisada em portugues; semelhanca com o filme e
+                subjetiva. Azure e uma alternativa online configuravel.
               </p>
               {!window.jarvisDesktop && (
                 <a
@@ -563,6 +586,7 @@ export default function Settings({
         )}
         {section === "data" && (
           <>
+            {toggle("autoMemory", "Guardar fatos pessoais ao conversar")}
             <div className="setting-row">
               <span>Armazenamento</span>
               <span className="setting-value">{platform.storage}</span>

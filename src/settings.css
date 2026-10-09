@@ -1,16 +1,33 @@
 .settings-console {
   --line: var(--border);
   display: grid;
-  grid-template-columns: 158px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
   min-width: 0;
 }
+.azure-settings {
+  margin: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.azure-settings h4 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  font-size: 14px;
+}
+.azure-settings h4 small {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+}
 .settings-tabs {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: 4px;
-  border-right: 1px solid var(--line);
-  padding-right: 14px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
 }
 .settings-tabs button {
   display: flex;

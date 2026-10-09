@@ -297,7 +297,7 @@ test("wake gate correlates model clocks in either arrival order and never wakes 
   assert.deepEqual(negative.transcript(transcript), []);
   const late = new WakeGate();
   late.keyword({ result: [{ ...keyword.result[0], start: 1, end: 1.4 }] });
-  assert.deepEqual(late.transcript(transcript), []);
+  assert.deepEqual(late.transcript(transcript), ["jardim se minhas"]);
 });
 test("neural synthesis validates profiles, chunks without truncation and emits real WAV headers", async () => {
   const text = "Palavras para testar. ".repeat(20).trim();

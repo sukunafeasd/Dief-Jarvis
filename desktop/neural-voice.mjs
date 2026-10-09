@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import fs from "node:fs/promises";
 import path from "node:path";
-import { speechChunks } from "../src/core/speech.mjs";
+import { speechChunks, pronunciationText } from "../src/core/speech.mjs";
 export { speechChunks };
 
 export const VOICE_PROFILES = Object.freeze({
@@ -120,7 +120,11 @@ export class NeuralVoice {
       let length = 0;
       for (const chunk of chunks) {
         phones.setVoice(VOICE_PROFILES[profile].language);
-        const ipa = phones.textToIpa(chunk);
+        const ipa = phones.textToIpa(
+          VOICE_PROFILES[profile].locale === "pt-BR"
+            ? pronunciationText(chunk)
+            : chunk,
+        );
         const { input_ids } = tokenizer(ipa, { truncation: false });
         const count = input_ids.dims.at(-1) - 2;
         if (count < 1 || count > 509)

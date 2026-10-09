@@ -38,7 +38,12 @@ export const VOICE_DEFAULTS = Object.freeze({
   voiceRate: 0.96,
   voicePitch: 0.9,
   voiceVolume: 0.85,
-  motionMode: "system",
+  azureVoice: "pt-BR-AntonioNeural",
+  motionMode: "always",
+  displayPresetVersion: 1,
+  listenOnLaunch: true,
+  listenInBackground: true,
+  autoMemory: true,
   intensity: 1,
 });
 
@@ -135,6 +140,12 @@ export function validateState(state) {
   }
   const options = { ...VOICE_DEFAULTS, ...state.settings };
   if (
+    typeof options.listenOnLaunch !== "boolean" ||
+    typeof options.listenInBackground !== "boolean" ||
+    typeof options.autoMemory !== "boolean"
+  )
+    throw Error("Preferencias do nucleo invalidas.");
+  if (
     state.settings.city !== undefined &&
     (typeof state.settings.city !== "string" ||
       state.settings.city.length > 100)
@@ -142,11 +153,13 @@ export function validateState(state) {
     throw Error("Cidade invalida.");
   if (
     !["voice", "workspace"].includes(options.presentation) ||
-    !["system", "neural"].includes(options.voiceEngine) ||
+    !["system", "neural", "azure"].includes(options.voiceEngine) ||
+    !["pt-BR-AntonioNeural", "pt-BR-CaioNeural"].includes(options.azureVoice) ||
     !["dief_pt", "pm_alex", "pm_santa", "bm_george"].includes(
       options.voiceProfile,
     ) ||
     options.voicePresetVersion !== 1 ||
+    options.displayPresetVersion !== 1 ||
     !["system", "always"].includes(options.motionMode) ||
     !["pt-BR", "en-GB"].includes(options.voiceLang) ||
     typeof options.voiceURI !== "string" ||

@@ -1,4 +1,5 @@
 import { PLAN_SCHEMA, validatePlan, TOOLS } from "./tools.mjs";
+import { normalize } from "./model.mjs";
 
 const BASE = "http://127.0.0.1:11434";
 export async function request(path, options, fetcher = fetch) {
@@ -57,13 +58,23 @@ export async function ollamaAssistant(
     accessMode: state.settings.access.mode,
     autonomy: state.agent.autonomy,
     authorizedFolder: state.agent.workspace,
-    memories: state.memories
-      .slice(0, 20)
+    memories: [...state.memories]
+      .map((memory, order) => ({
+        ...memory,
+        order,
+        relevance: normalize(goal)
+          .split(/\W+/)
+          .filter(
+            (word) => word.length > 3 && normalize(memory.text).includes(word),
+          ).length,
+      }))
+      .sort((a, b) => b.relevance - a.relevance || a.order - b.order)
+      .slice(0, 24)
       .map((item) => item.text.slice(0, 800)),
     tasks: state.tasks
       .slice(0, 20)
       .map((item) => ({ id: item.id, text: item.text, done: item.done })),
-    conversation: state.messages.slice(-8).map((item) => ({
+    conversation: state.messages.slice(-16).map((item) => ({
       role: item.role,
       content: item.content.slice(0, 1000),
     })),

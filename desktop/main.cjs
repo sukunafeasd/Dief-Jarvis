@@ -166,6 +166,21 @@ app
       progress: sendProgress,
     });
     const voiceService = new VoiceService(componentsRoot);
+    const { AzureVoice, validateAzureConfig } =
+      await loadDesktop("azure-voice.mjs");
+    database.exec(
+      "CREATE TABLE IF NOT EXISTS voice_secret (id INTEGER PRIMARY KEY CHECK(id=1), payload BLOB NOT NULL)",
+    );
+    const readAzure = async () => {
+      const item = database
+        .prepare("SELECT payload FROM voice_secret WHERE id=1")
+        .get();
+      if (!item) throw Error("Configure Azure Speech em Voz e audio primeiro.");
+      if (!safeStorage.isEncryptionAvailable())
+        throw Error("Protecao local indisponivel.");
+      return JSON.parse(safeStorage.decryptString(Buffer.from(item.payload)));
+    };
+    const azureVoice = new AzureVoice(readAzure);
     let browserAgent,
       setupAbort = null,
       runtimeReady = false;
@@ -696,34 +711,62 @@ app
     });
     ipcMain.handle("jarvis:voice", async (event, request) => {
       authorize(event);
+      if (request?.op === "azure-status") {
+        try {
+          const config = await readAzure();
+          return { configured: true, region: config.region };
+        } catch {
+          return { configured: false };
+        }
+      }
+      if (request?.op === "azure-remove") {
+        azureVoice.stop();
+        database.prepare("DELETE FROM voice_secret WHERE id=1").run();
+        return { configured: false };
+      }
+      if (request?.op === "azure-save") {
+        const config = validateAzureConfig(request);
+        if (!safeStorage.isEncryptionAvailable())
+          throw Error("Protecao local indisponivel; chave nao salva.");
+        const consent = await dialog.showMessageBox(window, {
+          type: "question",
+          defaultId: 1,
+          cancelId: 1,
+          buttons: ["Autorizar Azure Speech", "Cancelar"],
+          message: "Usar sintese de voz na Microsoft?",
+          detail:
+            "Ao selecionar Azure, o texto das respostas sera enviado ao Azure Speech. Audio do microfone continua local. O servico pode consumir sua cota ou gerar cobrancas. A chave sera protegida pelo Windows e nao aparecera nas exportacoes.",
+        });
+        if (consent.response !== 0)
+          throw Error("Integracao Azure nao autorizada.");
+        azureVoice.stop();
+        database
+          .prepare(
+            "INSERT INTO voice_secret (id,payload) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+          )
+          .run(safeStorage.encryptString(JSON.stringify(config)));
+        return { configured: true, region: config.region };
+      }
       if (request?.op === "stop") {
         micGranted = false;
         await voiceService.stop();
+        azureVoice.stop();
         return true;
       }
       if (request?.op === "cancel-speech") {
         await voiceService.stop();
+        azureVoice.stop();
         return true;
       }
       if (request?.op === "listen") {
         if (!(await installer.status()).ready)
           throw Error("Prepare os componentes de voz primeiro.");
-        const result = await dialog.showMessageBox(window, {
-          type: "question",
-          defaultId: 1,
-          cancelId: 1,
-          buttons: ["Ativar microfone nesta sessao", "Cancelar"],
-          message: "Autorizar escuta local continua?",
-          detail:
-            "O microfone sera processado localmente para detectar Jarvis e transcrever pedidos. Audio nao e salvo nem enviado para uma nuvem. Outra pessoa, TV ou gravacao pode acionar o nome; acoes sensiveis mantem confirmacao. Fechar/ocultar a janela ou desativar escuta encerra a captura.",
-        });
-        micGranted = result.response === 0;
-        if (!micGranted) throw Error("Microfone nao autorizado.");
+        micGranted = true;
         return true;
       }
       if (request?.op === "speak")
         return Uint8Array.from(
-          await voiceService.speak(
+          await (request.engine === "azure" ? azureVoice : voiceService).speak(
             request.text,
             request.profile,
             request.speed,
@@ -838,13 +881,17 @@ app
       assistant.stop();
       browserAgent.close();
       voiceService.stop();
+      azureVoice.stop();
       installer.cancel();
       setupAbort?.abort();
       window = null;
     });
-    const suspendVoice = () => {
+    const suspendVoice = async () => {
+      const current = await engine.read().catch(() => null);
+      if (current?.settings.listenInBackground) return;
       micGranted = false;
       voiceService.stop();
+      azureVoice.stop();
     };
     window.on("minimize", suspendVoice);
     window.on("hide", suspendVoice);

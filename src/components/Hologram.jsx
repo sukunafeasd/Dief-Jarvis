@@ -321,15 +321,33 @@ export default function Hologram({
   impulse = 0,
   intensity = 1,
   audioLevel = 0,
-  motionMode = "system",
+  motionMode = "always",
+  awake = false,
+  onActivate,
   onError,
 }) {
   const host = useRef(null);
-  const live = useRef({ phase, motion, impulse, intensity, motionMode, audioLevel });
+  const live = useRef({
+    phase,
+    motion,
+    impulse,
+    intensity,
+    motionMode,
+    audioLevel,
+  });
   const wakeRef = useRef(null);
   const drag = useRef(null);
+  const activate = useRef(onActivate);
+  activate.current = onActivate;
   useEffect(() => {
-    live.current = { phase, motion, impulse, intensity, motionMode, audioLevel };
+    live.current = {
+      phase,
+      motion,
+      impulse,
+      intensity,
+      motionMode,
+      audioLevel,
+    };
     wakeRef.current?.();
   }, [phase, motion, impulse, intensity, motionMode, audioLevel]);
   useEffect(() => {
@@ -419,7 +437,8 @@ export default function Hologram({
           ].includes(live.current.phase);
           energy = THREE.MathUtils.lerp(
             energy,
-            (active ? 0.7 : 0) + Math.min(1, live.current.audioLevel || 0) * 0.8,
+            (active ? 0.7 : 0) +
+              Math.min(1, live.current.audioLevel || 0) * 0.8,
             Math.min(dt * 5, 1),
           );
           const strength = live.current.intensity;
@@ -469,7 +488,9 @@ export default function Hologram({
               Math.max(0, 0.6 * (1 - period / 1.4)) * strength;
           });
           renderer.domElement.dataset.phase = live.current.phase;
-          renderer.domElement.dataset.audioLevel = String(live.current.audioLevel || 0);
+          renderer.domElement.dataset.audioLevel = String(
+            live.current.audioLevel || 0,
+          );
         }
         renderer.render(scene, camera);
         renderer.domElement.dataset.frame = String(now);
@@ -500,27 +521,43 @@ export default function Hologram({
     document.addEventListener("visibilitychange", wake);
     media.addEventListener("change", wake);
     const onDown = (event) => {
+      if (event.button !== 0) return;
+      const bounds = element.getBoundingClientRect();
       if (
-        !live.current.motion ||
-        (media.matches && live.current.motionMode !== "always")
+        Math.hypot(
+          event.clientX - bounds.x - bounds.width / 2,
+          event.clientY - bounds.y - bounds.height / 2,
+        ) >
+        Math.min(bounds.width, bounds.height) * 0.39
       )
         return;
-      drag.current = { x: event.clientX, y: event.clientY };
+      drag.current = { x: event.clientX, y: event.clientY, distance: 0 };
       element.setPointerCapture(event.pointerId);
     };
     const onMove = (event) => {
       if (!drag.current) return;
+      const distance =
+        drag.current.distance +
+        Math.hypot(
+          event.clientX - drag.current.x,
+          event.clientY - drag.current.y,
+        );
       core.root.rotation.y += (event.clientX - drag.current.x) * 0.005;
       core.root.rotation.x = THREE.MathUtils.clamp(
         core.root.rotation.x + (event.clientY - drag.current.y) * 0.003,
         -0.45,
         0.45,
       );
-      drag.current = { x: event.clientX, y: event.clientY };
+      drag.current = { x: event.clientX, y: event.clientY, distance };
       renderer.render(scene, camera);
     };
-    const onUp = () => {
+    const onUp = (event) => {
+      const tap =
+        drag.current &&
+        drag.current.distance < 8 &&
+        event.type !== "pointercancel";
       drag.current = null;
+      if (tap) activate.current?.();
     };
     element.addEventListener("pointerdown", onDown);
     element.addEventListener("pointermove", onMove);
@@ -560,5 +597,21 @@ export default function Hologram({
       renderer.domElement.remove();
     };
   }, [theme, quality, motion, onError]);
-  return <div ref={host} className="hologram" data-testid="hologram" />;
+  return (
+    <div
+      ref={host}
+      className={`hologram ${awake ? "awake" : "asleep"}`}
+      data-testid="hologram"
+      role="button"
+      tabIndex={0}
+      aria-pressed={awake}
+      aria-label={awake ? "Adormecer Jarvis" : "Ativar Jarvis"}
+      onKeyDown={(event) => {
+        if ((event.key === "Enter" || event.key === " ") && !event.repeat) {
+          event.preventDefault();
+          onActivate?.();
+        }
+      }}
+    />
+  );
 }

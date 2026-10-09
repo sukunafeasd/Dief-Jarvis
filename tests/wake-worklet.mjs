@@ -29,6 +29,18 @@ try {
   });
   const context = await browser.newContext({ permissions: ["microphone"] }),
     page = await context.newPage();
+  // This fixture owns capture; do not also start the application's listener.
+  await page.addInitScript(() => {
+    const query = navigator.permissions.query.bind(navigator.permissions);
+    navigator.permissions.query = (descriptor) =>
+      descriptor.name === "microphone"
+        ? Promise.resolve({
+            state: "prompt",
+            addEventListener() {},
+            removeEventListener() {},
+          })
+        : query(descriptor);
+  });
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`);
   await page.evaluate(async () => {
     const { WakeListener } = await import("/src/wake-listener.mjs");

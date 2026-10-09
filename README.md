@@ -1,17 +1,28 @@
 # Dief Jarvis
 
-Assistente pessoal independente do Painel Dief. Versao **1.0.0-alpha.5**.
+Assistente pessoal independente do Painel Dief. Versao **1.0.0-alpha.6**.
 Esta e uma alpha, nao a versao final 1.0 nem controle irrestrito do computador.
 
 ## Disponivel
 
 - Holograma Three.js full-bleed, paletas ambar/ciano, movimento e reacao ao audio.
-- Central por voz sem composer; menu recolhido; conversa escrita em outra vista.
+- Holograma como central, sem legendas ou controles de microfone. Toque para
+  ativar/adormecer; arrastar gira o nucleo sem ativar a escuta. Menu recolhido,
+  texto em vista separada e memoria/execucoes/auditoria reunidas nos registros.
+- Animacoes ativas por padrao, independentemente da preferencia do sistema.
+  Economia, pausa e respeito ao movimento reduzido sao escolhas nos ajustes.
 - Escuta local consentida, AudioWorklet + Vosk, nome Jarvis e comandos PT/EN.
 - Sintese neural local Kokoro: perfil Dief/PT padrao (Alex 80% + Santa 20%),
   Alex/Santa para comparar e George em ingles britanico. Fala por trechos com
   preparo do proximo enquanto o atual toca, normalizacao de unidades/Markdown.
   Aproximacao de estilo, nao voz oficial/clone do ator do filme.
+- Azure Speech opcional preparado: Antonio/Caio PT-BR, chave cifrada com
+  safeStorage em tabela separada no EXE, sem chave em estado/exportacao/auditoria.
+  Nenhuma conta foi criada e nenhuma sintese Azure real foi feita nesta rodada.
+- Memoria automatica conservadora de fatos declarados em primeira pessoa,
+  com origem, atualizacao, deduplicacao e opcao de desligar. Perguntas, citacoes,
+  segredos e afirmacoes de terceiros nao sao memorias automaticas. Nao e
+  consciencia, captura geral do PC ou garantia de compreensao de qualquer frase.
 - Preparacao obrigatoria no EXE para componentes/modelo/executor ausentes.
   Downloads consentidos, verificados por tamanho/SHA256 e com cancelamento.
 - Assistente Ollama com ferramentas tipadas, observacao/replanejamento, limites,
@@ -38,9 +49,16 @@ Comandos aprovados podem acessar tudo que o processo tiver direito, inclusive
 fora da pasta de trabalho: o executor PowerShell NAO e uma sandbox. Nao ha
 garantia de seguranca ou controle universal. Elevacao continua manual pelo UAC.
 
-Escuta so inicia apos consentimento. Outra pessoa/TV pode acionar Jarvis; nao ha
+Escuta inicia por toque ou automaticamente se o microfone ja estiver autorizado.
+A permissao do navegador/Windows nao e contornada. Escuta ao minimizar pode
+continuar por padrao e pode ser desligada nos ajustes; fechar a aplicacao encerra
+a captura. O navegador/SO pode suspender processos em segundo plano.
+Outra pessoa/TV pode acionar Jarvis; nao ha
 identificacao do falante. Durante a fala/processamento o reconhecimento pausa.
-Use Escape ou parar para interromper; nao ha barge-in por voz nesta alpha.
+Use Escape ou toque novamente no holograma para interromper; nao ha barge-in
+por voz nesta alpha. Apos o toque ha uma janela de 12s para o primeiro comando
+sem dizer o nome; fora dela, o nome Jarvis pode aparecer em qualquer parte da
+frase. Apos a resposta ha uma janela de 8s para continuar a conversa.
 O caminho curto de voz da vista de texto usa Web Speech e pode usar servico do
 navegador; o holograma usa Vosk local. Audio capturado nao e salvo.
 
@@ -59,6 +77,7 @@ npm test
 npm run build
 npm run test:browser
 npm run test:hologram
+npm run test:touch
 ```
 
 Previa: http://127.0.0.1:5194 . Nenhum deploy de producao e feito por esses comandos.
@@ -88,9 +107,14 @@ npm run desktop
 O aplicativo bloqueia uso enquanto faltarem componentes, Ollama, modelo ou
 helper. Instalar Ollama/modelo e autorizar microfone/PC sao operacoes separadas.
 Qwen3:1.7b e sugestao inicial; custos de RAM/disco dependem do modelo escolhido.
-Sem servicos pagos ou envio de audio para TTS em nuvem.
+O padrao Kokoro continua local e gratuito. Azure e opcional, exige uma chave
+fornecida pelo usuario e envia o texto da resposta a Microsoft; pode consumir
+cota ou gerar custos. Para a previa, configure JARVIS_AZURE_REGION e
+JARVIS_AZURE_KEY somente no ambiente do servidor e reinicie-o manualmente.
+Nunca use variaveis VITE_* para segredos. No EXE, configure em Ajustes > Voz.
+Nao contratamos, instalamos nem ativamos um servico pago.
 
-**Nao publicar binarios alpha.5 antes de resolver redistribuicao GPL do EPhone e
+**Nao publicar binarios alpha.6 antes de resolver redistribuicao GPL do EPhone e
 validacao Windows real.** Scripts de pacote usam publish never; arquivos de
 build/teste ficam fora do Git. Instalador/downloads do Painel Dief nao mudaram.
 
@@ -124,6 +148,7 @@ reais, sem executar novamente suas etapas. Limites operacionais: 24 ciclos,
 - [Voz, preparo e licencas da base alpha.4](docs/VOZ-E-AUTONOMIA-ALPHA4.md)
 - [Pesquisa de projetos publicos](docs/PESQUISA-AGENTES.md)
 - [Relatorio de testes alpha.5](docs/TEST_REPORT_ALPHA5.md)
+- [Relatorio de testes e limites alpha.6](docs/TEST_REPORT_ALPHA6.md)
 
 src/core guarda estado e contratos; src/components guarda interface;
 desktop guarda brokers, drivers e SQLite; tests guarda verificacoes.

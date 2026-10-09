@@ -36,7 +36,12 @@ try {
     await page.evaluate(() => document.querySelector(".navigation").inert),
     true,
   );
-  await page.getByRole("button", { name: "Abrir conversa por texto" }).click();
+  await page
+    .getByRole("button", { name: "Menu do Jarvis", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Entrada por texto", exact: true })
+    .click();
   for (const text of [
     "crie uma tarefa: revisar os executores",
     "hoje eu corri dois quilometros",
@@ -78,24 +83,29 @@ try {
       false,
       name,
     );
-    const heading = await page.locator(".core-heading h1").boundingBox();
+    const heading = await page.locator(".jarvis-header h1").boundingBox();
     assert.ok(
       heading.x >= 0 && heading.x + heading.width <= width + 1,
       `${name}: brand heading stays inside viewport`,
     );
     assert.equal(
-      await page.locator(".core-identifier").isVisible(),
-      false,
+      await page.locator(".core-identifier").count(),
+      0,
       "no stale identifier overlays the caption",
     );
-    const cards = await page.locator(".holo-cards").boundingBox(),
-      controls = await page.locator(".holo-bottom").boundingBox();
+    const cards = await page.locator(".holo-cards").boundingBox();
     assert.ok(
       cards.x >= 0 &&
         cards.x + cards.width <= width + 1 &&
         cards.y >= 0 &&
-        cards.y + cards.height <= controls.y + 1,
-      `${name}: cards must fit without covering voice controls`,
+        cards.y + cards.height <= height + 1,
+      `${name}: cards must fit inside the viewport`,
+    );
+    assert.equal(
+      await page
+        .locator(".holo-mic, .holo-caption, .holo-voice-controls")
+        .count(),
+      0,
     );
     for (const card of await page.locator(".holo-data").all()) {
       const bounds = await card.boundingBox();

@@ -7,7 +7,6 @@ import React, {
 } from "react";
 import {
   Aperture,
-  Radio,
   MessageSquare,
   ListTodo,
   Brain,
@@ -16,7 +15,6 @@ import {
   SlidersHorizontal,
   ArrowUpRight,
   ArrowUp,
-  ArrowDown,
   Send,
   Mic,
   MicOff,
@@ -29,15 +27,12 @@ import {
   Check,
   Trash2,
   Clock3,
-  ChevronRight,
   Search,
-  Menu,
   RotateCw,
   Pause,
   Play,
-  Cpu,
   LockKeyhole,
-  Workflow,
+  MoreHorizontal,
 } from "lucide-react";
 import { JarvisEngine } from "./core/engine.mjs";
 import { browserStorage } from "./core/storage.mjs";
@@ -53,12 +48,10 @@ import { AgentController } from "./core/agent.mjs";
 import "./core-effects.css";
 
 const NAV = [
-  ["central", Aperture, "Central"],
-  ["conversation", MessageSquare, "Conversa"],
+  ["central", Aperture, "Holograma"],
+  ["conversation", MessageSquare, "Entrada por texto"],
   ["tasks", ListTodo, "Tarefas"],
-  ["agent", Workflow, "Execucoes"],
-  ["memory", Brain, "Memoria"],
-  ["audit", ShieldCheck, "Auditoria"],
+  ["memory", Brain, "Nucleo e registros"],
   ["connections", Plug, "Conexoes"],
   ["settings", SlidersHorizontal, "Ajustes"],
 ];
@@ -80,14 +73,6 @@ const ACTION_NAMES = {
   "appearance.theme": "Paleta alterada",
   "conversation.local": "Conversa local",
   "conversation.unsupported": "Comando fora do escopo",
-};
-const PHASES = {
-  idle: "Em espera",
-  working: "Processando comando",
-  speaking: "Falando",
-  listening: "Ouvindo",
-  received: "Comando recebido",
-  responding: "Resposta pronta",
 };
 const date = (at) =>
   new Date(at).toLocaleString("pt-BR", {
@@ -396,8 +381,8 @@ function Briefing({ state }) {
 export default function App() {
   const engine = useMemo(() => new JarvisEngine(browserStorage()), []);
   const [state, setState] = useState(initialState);
-  const voiceOnly =
-    state.view === "central" && state.settings.presentation === "voice";
+  const voiceOnly = true;
+  const [recordTab, setRecordTab] = useState("memory");
   const [listenState, setListenState] = useState("off");
   const [audioLevel, setAudioLevel] = useState(0);
   const [runtimeStatus, setRuntimeStatus] = useState(null);
@@ -405,6 +390,8 @@ export default function App() {
   const [runtimeError, setRuntimeError] = useState("");
   const commandHandler = useRef(null);
   const listenerRef = useRef(null);
+  const activation = useRef(0);
+  const activating = useRef(false);
   const [ready, setReady] = useState(false);
   const [fatal, setFatal] = useState("");
   const [busy, setBusy] = useState(false);
@@ -417,7 +404,8 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [renderError, setRenderError] = useState("");
   const [menu, setMenu] = useState(false);
-  const [clock, setClock] = useState(new Date());
+  const backgroundListening = useRef(state.settings.listenInBackground);
+  backgroundListening.current = state.settings.listenInBackground;
   const [platform, setPlatform] = useState({
     name: "Navegador",
     storage: "IndexedDB · neste navegador",
@@ -476,9 +464,6 @@ export default function App() {
   useEffect(() => {
     listener.setMuted(["working", "speaking", "received"].includes(phase));
   }, [listener, phase]);
-  useEffect(() => {
-    if (!voiceOnly) listener.stop();
-  }, [voiceOnly, listener]);
   const hologramError = useCallback((text) => setRenderError(text), []);
   useEffect(() => {
     const media = matchMedia("(max-width: 900px)");
@@ -540,11 +525,11 @@ export default function App() {
           }
         } else if (import.meta.env.DEV) {
           window.jarvisPreviewVoice = {
-            speak: async (text, profile, speed) => {
+            speak: async (text, profile, speed, engine) => {
               const result = await fetch("/__jarvis_voice/speak", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ text, profile, speed }),
+                body: JSON.stringify({ text, profile, speed, engine }),
               });
               if (!result.ok)
                 throw Error(
@@ -558,16 +543,15 @@ export default function App() {
         if (mounted.current) setFatal(error.message);
       }
     })();
-    const timer = setInterval(() => {
-      if (!document.hidden) setClock(new Date());
-    }, 1000);
     const stop = () => {
+      activation.current++;
+      activating.current = false;
       voice.stop();
       listener.stop();
       window.jarvisDesktop?.voice({ op: "stop" }).catch(() => {});
     };
     const visibility = () => {
-      if (document.hidden) stop();
+      if (document.hidden && !backgroundListening.current) stop();
     };
     document.addEventListener("visibilitychange", visibility);
     const key = (event) => {
@@ -585,7 +569,6 @@ export default function App() {
     return () => {
       mounted.current = false;
       unsubscribe?.();
-      clearInterval(timer);
       voice.dispose();
       listener.stop();
       clearTimeout(settleTimer.current);
@@ -706,6 +689,7 @@ export default function App() {
     sendGuard.current = false;
   };
   const nav = (view) => {
+    if (["agent", "audit", "memory"].includes(view)) setRecordTab(view);
     setMenu(false);
     act({ type: "screen.view", view });
   };
@@ -798,38 +782,85 @@ export default function App() {
   };
   commandHandler.current = speechRequest;
   const stopListening = () => {
+    activation.current++;
+    activating.current = false;
     listener.stop();
     voice.stop();
     window.jarvisDesktop?.voice({ op: "stop" }).catch(() => {});
   };
-  const startListening = () =>
-    confirm(
-      "Ativar escuta continua local nesta sessao? O audio sera processado no dispositivo, nao salvo. Vozes de outras pessoas ou da TV podem acionar Jarvis; nao ha identificacao do falante. Ocultar a janela encerra a captura.",
-      async () => {
-        try {
-          if (window.jarvisDesktop?.voice)
-            await window.jarvisDesktop.voice({ op: "listen" });
-          else {
-            const result = await fetch("/__jarvis_voice/status");
-            if (!result.ok || !(await result.json()).ready)
-              throw Error(
-                "Os componentes de voz ainda precisam ser preparados.",
-              );
-          }
-          const saved = await act({
-            type: "settings.update",
-            changes: { voice: true },
-          });
-          if (!saved)
-            throw Error(
-              "Nao consegui salvar a preferencia de resposta por voz.",
-            );
-          await listener.start(state.settings.voiceLang);
-        } catch (error) {
-          setNotice(error.message);
-        }
-      },
-    );
+  const startListening = async (direct = false) => {
+    if (listener.enabled || activating.current) return;
+    const generation = ++activation.current;
+    activating.current = true;
+    setListenState("loading");
+    try {
+      if (window.jarvisDesktop?.voice)
+        await window.jarvisDesktop.voice({ op: "listen" });
+      else {
+        const result = await fetch("/__jarvis_voice/status");
+        if (!result.ok || !(await result.json()).ready)
+          throw Error("Os componentes de voz ainda precisam ser preparados.");
+      }
+      if (generation !== activation.current) {
+        window.jarvisDesktop?.voice({ op: "stop" }).catch(() => {});
+        return;
+      }
+      const saved = await act({
+        type: "settings.update",
+        changes: { voice: true },
+      });
+      if (!saved)
+        throw Error("Nao consegui salvar a preferencia de resposta por voz.");
+      if (generation !== activation.current) return;
+      await listener.start(state.settings.voiceLang);
+      if (direct) listener.arm();
+    } catch (error) {
+      if (generation === activation.current) {
+        setListenState("off");
+        setNotice(error.message);
+      }
+    } finally {
+      if (generation === activation.current) activating.current = false;
+    }
+  };
+  const toggleHologram = () => {
+    setImpulse((value) => value + 1);
+    if (
+      listener.enabled ||
+      activating.current ||
+      ["working", "speaking", "received"].includes(phase)
+    ) {
+      stopListening();
+      if (window.jarvisDesktop?.assistant)
+        window.jarvisDesktop
+          .assistant({ op: "stop" })
+          .catch((error) => setNotice(error.message));
+      else browserAssistant.stop();
+      setPhase("idle");
+    } else startListening(true);
+  };
+  const autoListenAttempted = useRef(false);
+  useEffect(() => {
+    if (!ready || autoListenAttempted.current || !state.settings.listenOnLaunch)
+      return;
+    autoListenAttempted.current = true;
+    let disposed = false;
+    navigator.permissions
+      ?.query({ name: "microphone" })
+      .then((permission) => {
+        if (
+          !disposed &&
+          permission.state === "granted" &&
+          !document.hidden &&
+          !listener.enabled
+        )
+          startListening(false);
+      })
+      .catch(() => {});
+    return () => {
+      disposed = true;
+    };
+  }, [ready, state.settings.listenOnLaunch]);
   const setupRequest = async (request) => {
     if (request.op === "connect") {
       const result = await window.jarvisDesktop.agent({
@@ -950,10 +981,9 @@ export default function App() {
     ) : (
       <Briefing state={state} />
     );
-  const auditLatest = [...state.audit].reverse().slice(0, 4);
   return (
     <div
-      className={`app-shell theme-${state.settings.theme} phase-${phase} ${state.focus ? "focus-mode" : ""} ${voiceOnly ? "voice-only" : ""}`}
+      className={`app-shell theme-${state.settings.theme} phase-${phase} ${state.focus ? "focus-mode" : ""} voice-only ${state.settings.motionMode === "always" ? "motion-always" : ""}`}
       aria-busy={busy}
     >
       <aside
@@ -979,28 +1009,6 @@ export default function App() {
             onClick={() => setMenu(false)}
           />
         </div>
-        <button
-          className="nav-row workspace-mode"
-          onClick={async () => {
-            const result = await act({
-              type: "settings.update",
-              changes: {
-                presentation:
-                  state.settings.presentation === "voice"
-                    ? "workspace"
-                    : "voice",
-              },
-            });
-            if (result) nav("central");
-          }}
-        >
-          <Aperture size={18} />
-          <span>
-            {state.settings.presentation === "voice"
-              ? "Modo painel"
-              : "Modo holograma"}
-          </span>
-        </button>
         <nav>
           {NAV.map(([key, Icon, label]) => (
             <button
@@ -1050,295 +1058,13 @@ export default function App() {
         />
       )}
       <div ref={mainRef} className="main-shell">
-        <header className="topbar">
-          <div className="topbar-left">
+        <header className="jarvis-header">
+          <h1>Dief Jarvis</h1>
+          <div>
             <IconButton
-              icon={Menu}
-              label="Abrir navegacao"
-              className="mobile-menu icon-button"
-              onClick={() => setMenu(!menu)}
-            />
-            <span className="breadcrumb">
-              JARVIS <ChevronRight size={12} />{" "}
-              {NAV.find((item) => item[0] === state.view)?.[2].toUpperCase()}
-            </span>
-          </div>
-          <div className="clock">
-            <time>
-              {clock.toLocaleTimeString("pt-BR", {
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              })}
-            </time>
-            <span>
-              {clock.toLocaleDateString("pt-BR", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              })}
-            </span>
-          </div>
-          <div className="topbar-right">
-            <span className="alpha-label">1.0 / ALPHA</span>
-            <span className="local-status">
-              <i /> NUCLEO LOCAL
-            </span>
-          </div>
-        </header>
-        <main className="workspace">
-          <div className="workspace-grid" aria-hidden="true" />
-          <div className="hologram-stage">
-            <React.Suspense fallback={null}>
-              <Hologram
-                theme={state.settings.theme}
-                motion={state.settings.motion}
-                quality={state.settings.quality}
-                phase={phase}
-                audioLevel={audioLevel}
-                impulse={impulse}
-                intensity={state.settings.intensity ?? 1}
-                motionMode={state.settings.motionMode || "system"}
-                onError={hologramError}
-              />
-            </React.Suspense>
-          </div>
-          {state.view === "central" && (
-            <>
-              <section className="core-heading">
-                <div className="eyebrow">CENTRAL DE COMANDO</div>
-                <h1>
-                  Dief
-                  <br />
-                  <span>Jarvis.</span>
-                </h1>
-                <div className="core-phase">
-                  <span className={`phase-dot ${phase}`} />
-                  {PHASES[phase]}
-                </div>
-              </section>
-              <div className="core-identifier" aria-hidden="true">
-                <span>J A R V I S</span>
-                <small>DIEF INTELLIGENCE SYSTEM</small>
-                <div className="core-coordinates">
-                  <span>LOCAL / 01</span>
-                  <span>DISPLAY CORE</span>
-                </div>
-              </div>
-              <div className="core-controls">
-                <IconButton
-                  icon={state.settings.motion ? Pause : Play}
-                  label={
-                    state.settings.motion ? "Pausar nucleo" : "Animar nucleo"
-                  }
-                  active={!state.settings.motion}
-                  onClick={() =>
-                    act({
-                      type: "settings.update",
-                      changes: { motion: !state.settings.motion },
-                    })
-                  }
-                />
-                <IconButton
-                  icon={state.focus ? Minimize2 : Maximize2}
-                  label={state.focus ? "Sair do modo foco" : "Modo foco"}
-                  onClick={() =>
-                    act({ type: "screen.focus", value: !state.focus })
-                  }
-                />
-                <IconButton
-                  icon={RotateCw}
-                  label="Restaurar central"
-                  onClick={() => act({ type: "screen.focus", value: false })}
-                />
-              </div>
-              {!state.focus && !voiceOnly && (
-                <div className="left-rail">
-                  <section className="hud-section">
-                    <header>
-                      <span className="eyebrow">NUCLEO / ESTADO</span>
-                      <Cpu size={15} />
-                    </header>
-                    <div className="service-line">
-                      <span>Comandos de tela</span>
-                      <b className="positive">Ativos</b>
-                    </div>
-                    <div className="service-line">
-                      <span>Planejador</span>
-                      <b>
-                        {state.agent.provider === "ollama"
-                          ? "Ollama configurado"
-                          : "Local"}
-                      </b>
-                    </div>
-                    <div className="service-line">
-                      <span>Microfone</span>
-                      <b>{phase === "listening" ? "Ouvindo" : "Desligado"}</b>
-                    </div>
-                    <div className="service-line">
-                      <span>Dados</span>
-                      <b>Neste dispositivo</b>
-                    </div>
-                  </section>
-                  <section className="hud-section quick-commands">
-                    <header>
-                      <span className="eyebrow">ACESSO DIRETO</span>
-                      <ArrowUpRight size={15} />
-                    </header>
-                    {[
-                      ["briefing", "Meu briefing", Radio],
-                      ["tasks", "Minhas tarefas", ListTodo],
-                      ["memory", "Minha memoria", Brain],
-                      ["audit", "Auditoria", ShieldCheck],
-                    ].map(([key, label, Icon]) => (
-                      <button
-                        key={key}
-                        onClick={() => act({ type: "screen.open", panel: key })}
-                      >
-                        <Icon size={16} />
-                        <span>{label}</span>
-                        <ChevronRight size={12} />
-                      </button>
-                    ))}
-                  </section>
-                  <div className="rail-footnote">
-                    <span className="status-dot ready" /> {state.audit.length}{" "}
-                    acao(oes) registrada(s)
-                  </div>
-                </div>
-              )}
-              {!state.focus && !voiceOnly && (
-                <aside className="right-rail">
-                  {state.panels.length ? (
-                    <div className="widget-stack">
-                      {state.panels.map((key, index) => (
-                        <section
-                          className="tool-window"
-                          data-panel={key}
-                          key={key}
-                        >
-                          <header>
-                            <h2>{PANELS[key]}</h2>
-                            <div>
-                              <IconButton
-                                icon={ArrowUp}
-                                label={`Mover ${PANELS[key]} para cima`}
-                                disabled={index === 0}
-                                onClick={() =>
-                                  act({
-                                    type: "screen.move",
-                                    panel: key,
-                                    direction: -1,
-                                  })
-                                }
-                              />
-                              <IconButton
-                                icon={ArrowDown}
-                                label={`Mover ${PANELS[key]} para baixo`}
-                                disabled={index === state.panels.length - 1}
-                                onClick={() =>
-                                  act({
-                                    type: "screen.move",
-                                    panel: key,
-                                    direction: 1,
-                                  })
-                                }
-                              />
-                              <IconButton
-                                icon={X}
-                                label={`Fechar ${PANELS[key]}`}
-                                onClick={() =>
-                                  act({ type: "screen.close", panel: key })
-                                }
-                              />
-                            </div>
-                          </header>
-                          <div className="tool-content">
-                            {content(key, true)}
-                          </div>
-                        </section>
-                      ))}
-                    </div>
-                  ) : (
-                    <>
-                      <section className="hud-section">
-                        <header>
-                          <span className="eyebrow">SEU DIA / LOCAL</span>
-                          <Clock3 size={15} />
-                        </header>
-                        <div className="daily-number">
-                          <strong>
-                            {String(
-                              state.tasks.filter((item) => !item.done).length,
-                            ).padStart(2, "0")}
-                          </strong>
-                          <span>tarefas abertas</span>
-                        </div>
-                        <button
-                          className="text-action"
-                          onClick={() => openForm("task")}
-                        >
-                          Nova tarefa <Plus size={15} />
-                        </button>
-                      </section>
-                      <section className="hud-section mini-audit">
-                        <header>
-                          <span className="eyebrow">TRILHA DE ACOES</span>
-                          <ShieldCheck size={15} />
-                        </header>
-                        {auditLatest.length ? (
-                          auditLatest.map((item) => (
-                            <div key={item.id} className="mini-audit-row">
-                              <i
-                                className={
-                                  item.status === "completed"
-                                    ? "positive-dot"
-                                    : "warning-dot"
-                                }
-                              />
-                              <span>
-                                {ACTION_NAMES[item.type] || item.type}
-                              </span>
-                              <time>{time(item.at)}</time>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="quiet-empty">
-                            Nenhuma acao registrada.
-                          </p>
-                        )}
-                        <button
-                          className="text-action"
-                          onClick={() => nav("audit")}
-                        >
-                          Abrir auditoria <ArrowUpRight size={14} />
-                        </button>
-                      </section>
-                    </>
-                  )}
-                </aside>
-              )}
-            </>
-          )}
-          {voiceOnly && (
-            <HoloConsole
-              state={state}
-              act={act}
-              listenState={listenState}
-              phase={phase}
-              level={audioLevel}
-              start={startListening}
-              stop={stopListening}
-              stopTask={() => {
-                voice.stop();
-                if (window.jarvisDesktop?.assistant)
-                  window.jarvisDesktop
-                    .assistant({ op: "stop" })
-                    .catch((error) => setNotice(error.message));
-                else browserAssistant.stop();
-              }}
-              menu={() => setMenu(!menu)}
-              fullscreen={async () => {
+              icon={Maximize2}
+              label="Tela cheia"
+              onClick={async () => {
                 try {
                   if (window.jarvisDesktop?.display)
                     await window.jarvisDesktop.display();
@@ -1349,9 +1075,59 @@ export default function App() {
                   setNotice(error.message);
                 }
               }}
-              openChat={() => nav("conversation")}
+            />
+            <IconButton
+              icon={MoreHorizontal}
+              label="Menu do Jarvis"
+              onClick={() => setMenu(!menu)}
+            />
+          </div>
+        </header>
+        <main className="workspace">
+          <div className="workspace-grid" aria-hidden="true" />
+          <div className="hologram-stage" hidden={state.view !== "central"}>
+            <React.Suspense fallback={null}>
+              <Hologram
+                theme={state.settings.theme}
+                motion={state.settings.motion}
+                quality={state.settings.quality}
+                phase={
+                  ["working", "speaking", "received", "responding"].includes(
+                    phase,
+                  )
+                    ? phase
+                    : listenState === "addressed"
+                      ? "listening"
+                      : "idle"
+                }
+                awake={
+                  listenState !== "off" ||
+                  ["working", "speaking", "received"].includes(phase)
+                }
+                onActivate={toggleHologram}
+                audioLevel={audioLevel}
+                impulse={impulse}
+                intensity={state.settings.intensity ?? 1}
+                motionMode={state.settings.motionMode || "always"}
+                onError={hologramError}
+              />
+            </React.Suspense>
+          </div>
+          {state.view === "central" && (
+            <HoloConsole
+              state={state}
+              act={act}
               openRuns={() => nav("agent")}
               removeCard={(id) => act({ type: "screen.card.remove", id })}
+              panelContent={(key) =>
+                ["settings", "connections"].includes(key) ? (
+                  <button className="text-action" onClick={() => nav(key)}>
+                    Abrir {key === "settings" ? "ajustes" : "conexoes"}
+                  </button>
+                ) : (
+                  content(key, true)
+                )
+              }
             />
           )}
           {state.view !== "central" && state.view !== "conversation" && (
@@ -1359,7 +1135,11 @@ export default function App() {
               <div className="view-header">
                 <div>
                   <span className="eyebrow">JARVIS / WORKSPACE</span>
-                  <h1>{NAV.find((item) => item[0] === state.view)?.[2]}</h1>
+                  <h1>
+                    {["memory", "agent", "audit"].includes(state.view)
+                      ? "Nucleo e registros"
+                      : NAV.find((item) => item[0] === state.view)?.[2]}
+                  </h1>
                 </div>
                 <IconButton
                   icon={X}
@@ -1367,7 +1147,35 @@ export default function App() {
                   onClick={() => nav("central")}
                 />
               </div>
-              {content(state.view)}
+              {["memory", "audit", "agent"].includes(state.view) ? (
+                <>
+                  <div
+                    className="record-tabs"
+                    role="tablist"
+                    aria-label="Nucleo e registros"
+                  >
+                    {[
+                      ["memory", "Memorias"],
+                      ["agent", "Execucoes"],
+                      ["audit", "Auditoria"],
+                    ].map(([key, label]) => (
+                      <button
+                        key={key}
+                        role="tab"
+                        aria-selected={recordTab === key}
+                        onClick={() => setRecordTab(key)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <div role="tabpanel" aria-label={recordTab}>
+                    {content(recordTab)}
+                  </div>
+                </>
+              ) : (
+                content(state.view)
+              )}
             </section>
           )}
           {state.view === "conversation" && (
@@ -1433,7 +1241,7 @@ export default function App() {
             </span>
           </div>
         </main>
-        {!voiceOnly && (
+        {state.view === "conversation" && (
           <section className="command-dock" aria-label="Conversa com Jarvis">
             <div className="last-response">
               <span>JARVIS</span>

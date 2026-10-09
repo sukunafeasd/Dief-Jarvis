@@ -1,10 +1,15 @@
 import fs from "node:fs/promises";
 import { ComponentInstaller, runtimeRoot } from "./components.mjs";
 import { VoiceService } from "./voice-service.mjs";
+import { AzureVoice } from "./azure-voice.mjs";
 export function previewVoicePlugin() {
   const root = runtimeRoot(),
     installer = new ComponentInstaller(root),
-    voice = new VoiceService(root);
+    voice = new VoiceService(root),
+    azure = new AzureVoice(async () => ({
+      region: process.env.JARVIS_AZURE_REGION,
+      key: process.env.JARVIS_AZURE_KEY,
+    }));
   return {
     name: "dief-preview-voice",
     configureServer(server) {
@@ -67,11 +72,9 @@ export function previewVoicePlugin() {
               if (body.length > 7000) throw Error("Pedido muito grande.");
             }
             const request = JSON.parse(body);
-            const wav = await voice.speak(
-              request.text,
-              request.profile,
-              request.speed,
-            );
+            const wav = await (
+              request.engine === "azure" ? azure : voice
+            ).speak(request.text, request.profile, request.speed);
             res.setHeader("Content-Type", "audio/wav");
             res.setHeader("Cache-Control", "no-store");
             return res.end(wav);
@@ -81,6 +84,7 @@ export function previewVoicePlugin() {
             req.method === "POST"
           ) {
             await voice.stop();
+            azure.stop();
             res.writeHead(204);
             return res.end();
           }
@@ -91,7 +95,10 @@ export function previewVoicePlugin() {
           res.end(JSON.stringify({ error: error.message }));
         }
       });
-      server.httpServer?.on("close", () => voice.stop());
+      server.httpServer?.on("close", () => {
+        voice.stop();
+        azure.stop();
+      });
     },
   };
 }

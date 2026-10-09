@@ -108,7 +108,7 @@ export class VoiceChannel {
   }
   speak(text, options = {}) {
     if (
-      options.voiceEngine === "neural" &&
+      ["neural", "azure"].includes(options.voiceEngine) &&
       !window.jarvisDesktop?.voice &&
       !window.jarvisPreviewVoice
     ) {
@@ -119,7 +119,7 @@ export class VoiceChannel {
       return;
     }
     if (
-      options.voiceEngine === "neural" &&
+      ["neural", "azure"].includes(options.voiceEngine) &&
       (window.jarvisDesktop?.voice || window.jarvisPreviewVoice)
     ) {
       return this.speakNeural(text, options);
@@ -206,13 +206,20 @@ export class VoiceChannel {
             ? await window.jarvisDesktop.voice({
                 op: "speak",
                 text: part,
-                profile: options.voiceProfile,
+                engine: options.voiceEngine,
+                profile:
+                  options.voiceEngine === "azure"
+                    ? options.azureVoice
+                    : options.voiceProfile,
                 speed: options.voiceRate,
               })
             : await window.jarvisPreviewVoice.speak(
                 part,
-                options.voiceProfile,
+                options.voiceEngine === "azure"
+                  ? options.azureVoice
+                  : options.voiceProfile,
                 options.voiceRate,
+                options.voiceEngine,
               );
           return { wav };
         } catch (error) {

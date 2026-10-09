@@ -33,18 +33,20 @@ export class WakeGate {
       const wake = this.keywords.find(
         (word) =>
           word.start >= start - 0.15 &&
-          word.start <= start + 0.8 &&
+          word.start <= end &&
           word.end <= end + 0.2,
       );
       if (!wake) continue;
       const next = this.keywords.find(
         (word) => word.start > wake.end && word.start <= end,
       );
-      const spoken = words.filter(
+      let spoken = words.filter(
         (word) =>
           word.start >= wake.end - 0.04 &&
           (!next || word.end <= next.start + 0.04),
       );
+      if (!spoken.length)
+        spoken = words.filter((word) => word.end <= wake.start + 0.04);
       commands.push(
         spoken
           .map((word) => word.word)

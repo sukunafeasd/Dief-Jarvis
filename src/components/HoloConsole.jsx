@@ -1,11 +1,5 @@
 import React from "react";
 import {
-  Mic,
-  MicOff,
-  MoreHorizontal,
-  Square,
-  Maximize2,
-  MessageSquare,
   X,
   Activity,
   CloudSun,
@@ -15,56 +9,44 @@ import {
   Brain,
 } from "lucide-react";
 import "./holo-console.css";
-const STATES = {
-  off: "Microfone desligado",
-  loading: "Preparando escuta",
-  listening: "Escuta local ativa",
-  addressed: "Ouvindo seu pedido",
-};
 export default function HoloConsole({
   state,
-  listenState,
-  phase,
-  level,
-  start,
-  stop,
-  stopTask,
-  menu,
-  fullscreen,
-  openChat,
   removeCard,
   openRuns,
   act,
+  panelContent,
 }) {
   const pending = state.runs.find((run) => run.status === "planned");
   return (
-    <section
-      className="holo-console"
-      aria-label="Jarvis por voz"
-      style={{ "--voice-level": level }}
-    >
-      <div className="holo-top">
-        <span className="holo-signature">DIEF / JARVIS</span>
-        <div>
-          <button
-            className="icon-button"
-            aria-label="Tela cheia"
-            title="Tela cheia"
-            onClick={fullscreen}
-          >
-            <Maximize2 size={18} />
-          </button>
-          <button
-            className="icon-button"
-            aria-label="Menu do Jarvis"
-            title="Menu do Jarvis"
-            onClick={menu}
-          >
-            <MoreHorizontal size={22} />
-          </button>
-        </div>
-      </div>
+    <section className="holo-console" aria-label="Jarvis por voz">
       <aside className="holo-cards" aria-label="Dados na tela">
+        {state.panels
+          .filter((key) => !["tasks", "memory"].includes(key))
+          .map((key) => (
+            <article className="holo-data holo-task-data" key={key}>
+              <header>
+                <span>
+                  {
+                    {
+                      audit: "Auditoria",
+                      briefing: "Meu dia",
+                      connections: "Conexoes",
+                      settings: "Ajustes",
+                    }[key]
+                  }
+                </span>
+                <button
+                  className="icon-button"
+                  aria-label={`Fechar ${key}`}
+                  title="Fechar"
+                  onClick={() => act({ type: "screen.close", panel: key })}
+                >
+                  <X size={14} />
+                </button>
+              </header>
+              <div className="holo-panel-content">{panelContent(key)}</div>
+            </article>
+          ))}
         {state.panels.includes("tasks") && (
           <article className="holo-data holo-task-data">
             <header>
@@ -131,9 +113,7 @@ export default function HoloConsole({
             ) : (
               <p>Nenhuma memoria guardada.</p>
             )}
-            <footer>
-              Registrado pelo operador / {state.memories.length} memoria(s)
-            </footer>
+            <footer>Nucleo local / {state.memories.length} memoria(s)</footer>
           </article>
         )}
         {state.cards.map((card) => {
@@ -174,60 +154,13 @@ export default function HoloConsole({
           );
         })}
       </aside>
-      <div className="holo-bottom">
-        {pending && (
+      {pending && (
+        <div className="holo-authorization">
           <button className="holo-pending" onClick={openRuns}>
             Autorizacao necessaria <span>{pending.steps.length} etapa(s)</span>
           </button>
-        )}
-        <div className="holo-caption" aria-live="polite">
-          {state.messages.at(-1)?.role === "jarvis"
-            ? state.messages.at(-1).content
-            : `Estou aqui, ${state.settings.name}.`}
         </div>
-        <div className="holo-voice-controls">
-          <button
-            className="icon-button"
-            aria-label="Interromper tarefa e fala"
-            title="Interromper tarefa e fala"
-            onClick={stopTask}
-          >
-            <Square size={17} />
-          </button>
-          <button
-            className={`holo-mic ${listenState !== "off" ? "active" : ""}`}
-            aria-label={
-              listenState === "off"
-                ? "Ativar escuta local"
-                : "Desativar escuta local"
-            }
-            title={
-              listenState === "off"
-                ? "Ativar escuta local"
-                : "Desativar escuta local"
-            }
-            aria-pressed={listenState !== "off"}
-            onClick={listenState === "off" ? start : stop}
-          >
-            {listenState === "off" ? <Mic size={25} /> : <MicOff size={25} />}
-          </button>
-          <button
-            className="icon-button"
-            aria-label="Abrir conversa por texto"
-            title="Abrir conversa por texto"
-            onClick={openChat}
-          >
-            <MessageSquare size={18} />
-          </button>
-        </div>
-        <span className="holo-listening-state">
-          {["working", "speaking", "received"].includes(phase)
-            ? phase === "speaking"
-              ? "Jarvis falando"
-              : "Atendendo seu pedido"
-            : STATES[listenState]}
-        </span>
-      </div>
+      )}
     </section>
   );
 }
