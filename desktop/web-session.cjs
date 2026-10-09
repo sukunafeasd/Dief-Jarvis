@@ -1,4 +1,3 @@
-const { BrowserWindow, session } = require("electron");
 const WORLD = 777;
 function observeDOM() {
   const refs = new Map(),
@@ -105,6 +104,7 @@ class WebSession {
     this.window = null;
   }
   async open(url, signal) {
+    const { BrowserWindow, session } = require("electron");
     const safe = await this.validateUrl(url);
     signal.throwIfAborted();
     if (!this.window || this.window.isDestroyed()) {
