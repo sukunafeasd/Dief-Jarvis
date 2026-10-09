@@ -3,7 +3,26 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import path from "node:path";
 const require = createRequire(import.meta.url);
-const { requireSender, assetPath } = require("../desktop/policy.cjs");
+const {
+  requireSender,
+  assetPath,
+  requireRendererAction,
+} = require("../desktop/policy.cjs");
+test("renderer cannot forge agent checkpoints, workspace grants, model settings or web effect audits", () => {
+  requireRendererAction({ type: "chat.send" });
+  for (const type of [
+    "agent.create",
+    "agent.start",
+    "agent.local",
+    "agent.step",
+    "agent.finish",
+    "agent.workspace",
+    "agent.configure",
+    "tool.web.search",
+  ])
+    assert.throws(() => requireRendererAction({ type, confirmed: true }));
+  assert.throws(() => requireRendererAction({ type: 42 }));
+});
 test("only the own local top-frame renderer can call the desktop broker", () => {
   const frame = { url: "jarvis://app/" };
   const contents = { mainFrame: frame };

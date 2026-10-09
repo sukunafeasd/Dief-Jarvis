@@ -1,3 +1,5 @@
+import { validateRuns } from "./tools.mjs";
+
 export const PANELS = Object.freeze({
   tasks: "Tarefas",
   memory: "Memoria",
@@ -13,6 +15,7 @@ export const VIEWS = [
   "memory",
   "audit",
   "connections",
+  "agent",
   "settings",
 ];
 export const THEMES = ["amber", "cyan"];
@@ -52,6 +55,8 @@ export function initialState() {
       access: { ...ACCESS_DEFAULTS },
     },
     tasks: [],
+    runs: [],
+    agent: { provider: "local", model: "", workspace: "" },
     memories: [],
     messages: [],
     audit: [],
@@ -59,6 +64,16 @@ export function initialState() {
   };
 }
 export function validateState(state) {
+  validateRuns(state.runs || []);
+  const agent = state.agent || { provider: "local", model: "", workspace: "" };
+  if (
+    !["local", "ollama"].includes(agent.provider) ||
+    typeof agent.model !== "string" ||
+    agent.model.length > 120 ||
+    typeof agent.workspace !== "string" ||
+    agent.workspace.length > 1000
+  )
+    throw Error("Configuracao do agente invalida.");
   if (
     !state ||
     state.schema !== 1 ||

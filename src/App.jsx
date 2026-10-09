@@ -37,18 +37,22 @@ import {
   Play,
   Cpu,
   LockKeyhole,
+  Workflow,
 } from "lucide-react";
 import { JarvisEngine } from "./core/engine.mjs";
 import { browserStorage } from "./core/storage.mjs";
 import { PANELS, initialState, verifyAudit } from "./core/model.mjs";
 import { VoiceChannel } from "./voice.mjs";
 import Settings from "./components/Settings.jsx";
+import AgentConsole from "./components/AgentConsole.jsx";
+import { AgentController } from "./core/agent.mjs";
 import "./core-effects.css";
 
 const NAV = [
   ["central", Aperture, "Central"],
   ["conversation", MessageSquare, "Conversa"],
   ["tasks", ListTodo, "Tarefas"],
+  ["agent", Workflow, "Execucoes"],
   ["memory", Brain, "Memoria"],
   ["audit", ShieldCheck, "Auditoria"],
   ["connections", Plug, "Conexoes"],
@@ -314,24 +318,37 @@ function AuditList({ state, compact = false, act }) {
     </>
   );
 }
-function Connections() {
+function Connections({ state }) {
   return (
     <div className="connections-list">
       {[
-        ["IA externa", "Nenhum provedor conectado"],
+        [
+          "Planejador",
+          state.agent.provider === "ollama"
+            ? `Ollama configurado: ${state.agent.model} · disponibilidade verificada por pedido`
+            : "Comandos locais · sem IA generativa",
+          state.agent.provider === "local",
+        ],
+        [
+          "Arquivos",
+          state.agent.workspace
+            ? "Pasta autorizada selecionada · EXE"
+            : "Nenhuma pasta autorizada",
+          false,
+        ],
         ["Agenda e e-mail", "Nao conectados"],
         ["Painel Dief", "Pareamento ainda nao implementado"],
-        ["Comandos de tela", "Disponivel neste dispositivo"],
-      ].map(([name, status], index) => (
+        ["Comandos de tela", "Disponivel neste dispositivo", true],
+      ].map(([name, status, available]) => (
         <article key={name}>
-          <div className={`connection-icon ${index === 3 ? "ready" : ""}`}>
+          <div className={`connection-icon ${available ? "ready" : ""}`}>
             <Plug size={18} />
           </div>
           <div>
             <strong>{name}</strong>
             <span>{status}</span>
           </div>
-          <span className={`status-dot ${index === 3 ? "ready" : ""}`} />
+          <span className={`status-dot ${available ? "ready" : ""}`} />
         </article>
       ))}
     </div>
@@ -411,8 +428,15 @@ export default function App() {
     [],
   );
   const updateState = useCallback((next) => {
-    if (mounted.current) setState(next);
+    if (mounted.current)
+      setState((current) =>
+        next.revision >= current.revision ? next : current,
+      );
   }, []);
+  const browserAgent = useMemo(
+    () => new AgentController(engine, { onChange: updateState }),
+    [engine, updateState],
+  );
   const hologramError = useCallback((text) => setRenderError(text), []);
   useEffect(() => {
     const media = matchMedia("(max-width: 900px)");
@@ -450,13 +474,15 @@ export default function App() {
   }, [menu]);
   useEffect(() => {
     mounted.current = true;
+    const unsubscribe = window.jarvisDesktop?.onState(updateState);
     (async () => {
       try {
+        if (!window.jarvisDesktop) await browserAgent.recover();
         const data = window.jarvisDesktop
           ? await window.jarvisDesktop.read()
           : await engine.read();
         if (!mounted.current) return;
-        setState(data);
+        updateState(data);
         if (window.jarvisDesktop)
           setPlatform(await window.jarvisDesktop.platform());
         setReady(true);
@@ -486,6 +512,7 @@ export default function App() {
     window.addEventListener("pagehide", stop);
     return () => {
       mounted.current = false;
+      unsubscribe?.();
       clearInterval(timer);
       voice.dispose();
       clearTimeout(settleTimer.current);
@@ -494,7 +521,7 @@ export default function App() {
       document.removeEventListener("keydown", key);
       window.removeEventListener("pagehide", stop);
     };
-  }, [engine, voice]);
+  }, [engine, voice, browserAgent, updateState]);
   useEffect(() => {
     if (!notice) return;
     const timer = setTimeout(() => setNotice(""), 6500);
@@ -560,7 +587,17 @@ export default function App() {
     settleTimer.current = setTimeout(() => {
       if (mounted.current && sendGuard.current) setPhase("working");
     }, 160);
-    const result = await act({ type: "chat.send", content });
+    if (/^\/agente\s+/i.test(content))
+      await act({ type: "screen.view", view: "agent" });
+    const result = /^\/agente\s+/i.test(content)
+      ? await agentRequest(
+          { op: "plan", goal: content.replace(/^\/agente\s+/i, "") },
+          true,
+        ).catch((error) => {
+          setNotice(error.message);
+          return null;
+        })
+      : await act({ type: "chat.send", content });
     if (mounted.current) {
       if (!result) setDraft((current) => current || content);
       setBusy(false);
@@ -637,15 +674,63 @@ export default function App() {
     voice.start();
   };
   const common = { state, act, openForm, confirm };
+  const agentRequest = async (request, long = false) => {
+    if (!ready || fatal) throw Error("O nucleo ainda nao esta pronto.");
+    if (long) {
+      voice.stop();
+      setPhase("working");
+      setImpulse((value) => value + 1);
+    }
+    try {
+      let result;
+      if (window.jarvisDesktop?.agent)
+        result = await window.jarvisDesktop.agent(request);
+      else if (request.op === "plan")
+        result = await browserAgent.plan(request.goal);
+      else if (request.op === "run")
+        result = await browserAgent.run(request.id);
+      else if (request.op === "cancel")
+        result = await browserAgent.cancel(request.id);
+      else if (request.op === "configure" && request.provider === "local")
+        result = await engine.execute({
+          type: "agent.configure",
+          provider: "local",
+        });
+      else throw Error("Esta operacao requer o EXE.");
+      if (result?.state) updateState(result.state);
+      if (long && mounted.current) {
+        setPhase("responding");
+        clearTimeout(responseTimer.current);
+        responseTimer.current = setTimeout(
+          () =>
+            setPhase((current) =>
+              current === "responding" ? "idle" : current,
+            ),
+          1400,
+        );
+      }
+      return result;
+    } catch (error) {
+      if (long && mounted.current) setPhase("idle");
+      throw error;
+    }
+  };
   const content = (key, compact = false) =>
-    key === "tasks" ? (
+    key === "agent" ? (
+      <AgentConsole
+        state={state}
+        request={agentRequest}
+        native={!!window.jarvisDesktop}
+        confirm={confirm}
+      />
+    ) : key === "tasks" ? (
       <TaskList {...common} compact={compact} />
     ) : key === "memory" ? (
       <MemoryList {...common} compact={compact} />
     ) : key === "audit" ? (
       <AuditList state={state} act={act} compact={compact} />
     ) : key === "connections" ? (
-      <Connections />
+      <Connections state={state} />
     ) : key === "settings" ? (
       <Settings
         {...common}
@@ -861,8 +946,12 @@ export default function App() {
                       <b className="positive">Ativos</b>
                     </div>
                     <div className="service-line">
-                      <span>IA externa</span>
-                      <b>Nao conectada</b>
+                      <span>Planejador</span>
+                      <b>
+                        {state.agent.provider === "ollama"
+                          ? "Ollama configurado"
+                          : "Local"}
+                      </b>
                     </div>
                     <div className="service-line">
                       <span>Microfone</span>

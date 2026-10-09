@@ -1,6 +1,6 @@
 {
   "name": "dief-jarvis",
-  "version": "1.0.0-alpha.2",
+  "version": "1.0.0-alpha.3",
   "private": true,
   "description": "Central de comando pessoal Dief Jarvis.",
   "author": "Equipe Dief",
@@ -12,6 +12,7 @@
     "preview": "vite preview --host 127.0.0.1 --port 5195 --strictPort",
     "test": "node --test tests/*.test.mjs",
     "test:browser": "node tests/browser.mjs",
+    "verify:package": "node scripts/verify-package.mjs",
     "desktop": "electron .",
     "setup:desktop": "node node_modules/electron/install.js",
     "package:dir": "npm run build && electron-builder --win --dir --publish never",

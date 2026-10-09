@@ -372,8 +372,10 @@ export default function Settings({
               ],
               [
                 "files",
-                "Criar, editar e excluir arquivos",
-                "Executor ainda nao conectado",
+                "Ler, criar textos e usar a Lixeira",
+                platform.capabilities?.files
+                  ? "Somente na pasta escolhida em Execucoes"
+                  : "Disponivel no EXE",
               ],
               [
                 "desktop",
@@ -499,7 +501,11 @@ export default function Settings({
             </div>
             <div className="setting-row">
               <span>IA generativa</span>
-              <span className="setting-value">Nao conectada</span>
+              <span className="setting-value">
+                {state.agent.provider === "ollama"
+                  ? `Ollama configurado: ${state.agent.model}`
+                  : "Nao conectada"}
+              </span>
             </div>
             <div className="setting-row">
               <span>Painel / Mongo</span>

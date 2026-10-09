@@ -10,7 +10,11 @@ const {
 const path = require("node:path");
 const fs = require("node:fs/promises");
 const { pathToFileURL } = require("node:url");
-const { requireSender, assetPath } = require("./policy.cjs");
+const {
+  requireSender,
+  assetPath,
+  requireRendererAction,
+} = require("./policy.cjs");
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -92,6 +96,51 @@ app
       pathToFileURL(path.join(app.getAppPath(), "src/core/engine.mjs")).href
     );
     const engine = new JarvisEngine(storage);
+    const { AgentController } = await import(
+      pathToFileURL(path.join(app.getAppPath(), "src/core/agent.mjs")).href
+    );
+    const { ollamaModels, ollamaPlan } = await import(
+      pathToFileURL(path.join(app.getAppPath(), "src/core/ollama.mjs")).href
+    );
+    const { workspaceTool, checkedPath } = await import(
+      pathToFileURL(path.join(__dirname, "workspace.mjs")).href
+    );
+    const { TOOLS } = await import(
+      pathToFileURL(path.join(app.getAppPath(), "src/core/tools.mjs")).href
+    );
+    const agent = new AgentController(engine, {
+      onChange: (state) => {
+        if (window && !window.isDestroyed())
+          window.webContents.send("jarvis:state", state);
+      },
+      planner: ollamaPlan,
+      approve: async (step) => {
+        if (!window || window.isDestroyed()) return false;
+        const result = await dialog.showMessageBox(window, {
+          type: "warning",
+          title: "Autorizar etapa do Jarvis",
+          defaultId: 1,
+          cancelId: 1,
+          buttons: ["Autorizar esta etapa", "Cancelar"],
+          message: TOOLS[step.tool].title,
+          detail: JSON.stringify(step.args, null, 2),
+        });
+        return result.response === 0;
+      },
+      execute: async (step, state, signal) => {
+        signal.throwIfAborted();
+        if (step.tool === "web.search") {
+          await shell.openExternal(
+            `https://www.bing.com/search?q=${encodeURIComponent(step.args.query)}`,
+          );
+          return "Pesquisa aberta no navegador externo. O Jarvis nao leu nem verificou os resultados.";
+        }
+        return workspaceTool(state.agent.workspace, step, signal, (target) =>
+          shell.trashItem(target),
+        );
+      },
+    });
+    await agent.recover();
     const mime = {
       ".html": "text/html",
       ".js": "text/javascript",
@@ -156,8 +205,7 @@ app
     });
     ipcMain.handle("jarvis:execute", async (event, action) => {
       authorize(event);
-      if (action?.type === "tool.web.search")
-        throw Error("Use o executor de pesquisa autorizado.");
+      requireRendererAction(action);
       if (action?.type === "permissions.update") {
         const current = (await engine.read()).settings.access;
         const next = action.access || {};
@@ -175,7 +223,7 @@ app
             buttons: ["Autorizar", "Cancelar"],
             message: "Confirmar ampliacao da politica de acesso?",
             detail:
-              "Pesquisa web abre o navegador externo. Arquivos, controle do PC e administrador ainda aguardam executores. Esta preferencia nao desativa UAC, nao libera comandos arbitrarios e pode ser revogada nos ajustes.",
+              "Pesquisa web abre o navegador externo. Arquivos permitem listar, ler, criar textos sem sobrescrever e enviar arquivos para a Lixeira somente na pasta escolhida. Controle geral do PC e administrador ainda aguardam executores. Esta preferencia nao desativa UAC e pode ser revogada nos ajustes.",
           });
           if (result.response !== 0)
             throw Error("Autorizacao cancelada. Acesso anterior preservado.");
@@ -183,6 +231,60 @@ app
         action = { ...action, confirmed: true };
       }
       return engine.execute(action);
+    });
+    ipcMain.handle("jarvis:agent", async (event, request) => {
+      authorize(event);
+      if (!request || typeof request !== "object")
+        throw Error("Pedido invalido.");
+      if (request.op === "plan") return agent.plan(request.goal);
+      if (request.op === "run") return agent.run(request.id);
+      if (request.op === "cancel") return agent.cancel(request.id);
+      if (request.op === "models") return ollamaModels();
+      if (request.op === "configure") {
+        if (agent.active)
+          throw Error("Aguarde a execucao ativa antes de trocar o modelo.");
+        if (request.provider === "ollama") {
+          const models = await ollamaModels();
+          if (!models.includes(request.model))
+            throw Error("Modelo nao esta instalado neste Ollama.");
+          const answer = await dialog.showMessageBox(window, {
+            type: "question",
+            defaultId: 1,
+            cancelId: 1,
+            buttons: ["Usar modelo local", "Cancelar"],
+            message: "Autorizar contexto para o Ollama?",
+            detail:
+              "Pedidos de planejamento enviarao as ultimas 8 mensagens e ate 20 memorias ao servico em 127.0.0.1:11434. Configure o Ollama para usar um modelo local; o Jarvis nao verifica se o servico encaminha dados. Nada sera executado sem autorizar o plano.",
+          });
+          if (answer.response !== 0) throw Error("Configuracao cancelada.");
+        }
+        return engine.execute({
+          type: "agent.configure",
+          provider: request.provider,
+          model: request.model,
+        });
+      }
+      if (request.op === "workspace") {
+        if (agent.active)
+          throw Error("Cancele ou aguarde a execucao antes de trocar a pasta.");
+        if (request.revoke === true)
+          return engine.execute({ type: "agent.workspace", path: "" });
+        const access = (await engine.read()).settings.access;
+        if (!access.files)
+          throw Error("Autorize arquivos nos ajustes primeiro.");
+        const picked = await dialog.showOpenDialog(window, {
+          title: "Escolher pasta autorizada do Jarvis",
+          properties: ["openDirectory"],
+        });
+        if (picked.canceled || !picked.filePaths[0])
+          throw Error("Selecao de pasta cancelada.");
+        const selected = picked.filePaths[0];
+        if (path.parse(selected).root === selected)
+          throw Error("Escolha uma pasta especifica, nao o disco inteiro.");
+        await checkedPath(selected, ".");
+        return engine.execute({ type: "agent.workspace", path: selected });
+      }
+      throw Error("Operacao de agente desconhecida.");
     });
     ipcMain.handle("jarvis:search", async (event, query) => {
       authorize(event);
@@ -214,7 +316,7 @@ app
         storage: safeStorage.isEncryptionAvailable()
           ? "SQLite · protecao do Windows"
           : "Protecao do sistema indisponivel",
-        capabilities: { web: true, files: false, desktop: false, admin: false },
+        capabilities: { web: true, files: true, desktop: false, admin: false },
       };
     });
     window.on("closed", () => {

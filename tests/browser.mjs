@@ -277,6 +277,73 @@ try {
     await page.getByRole("combobox", { name: "Idioma da voz" }).inputValue(),
     "en-GB",
   );
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("button", { name: "Execucoes", exact: true }).click();
+  await page
+    .getByLabel("Nova execucao")
+    .fill("crie uma tarefa: Agent browser test; mostre tarefas");
+  await page
+    .getByRole("button", { name: "Preparar plano", exact: true })
+    .click();
+  await page.locator(".agent-run.planned").waitFor();
+  assert.equal(await page.locator(".agent-run.planned li.pending").count(), 2);
+  await page
+    .getByRole("button", { name: "Autorizar e executar", exact: true })
+    .click();
+  await page
+    .locator(".modal")
+    .getByRole("button", { name: "Cancelar", exact: true })
+    .click();
+  assert.equal(
+    await page.locator(".agent-run.planned").count(),
+    1,
+    "dismissed authorization does not run",
+  );
+  await page
+    .getByRole("button", { name: "Autorizar e executar", exact: true })
+    .click();
+  await page
+    .locator(".modal")
+    .getByRole("button", { name: "Confirmar", exact: true })
+    .click();
+  await page.locator(".agent-run.completed").waitFor();
+  assert.equal(
+    await page.locator(".agent-run.completed li.completed").count(),
+    2,
+  );
+  for (const [width, height, name] of [
+    [1440, 900, "agent"],
+    [393, 851, "agent-mobile"],
+    [844, 390, "agent-landscape"],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await page.waitForTimeout(150);
+    assert.equal(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > innerWidth,
+      ),
+      false,
+      `${name}: no overflow`,
+    );
+    await page.screenshot({ path: `artifacts/${name}.png`, fullPage: true });
+  }
+  await page.reload();
+  await page.locator(".agent-run.completed").waitFor();
+  assert.equal(
+    await page.locator(".agent-run.completed li.completed").count(),
+    2,
+    "run history persisted",
+  );
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByLabel("Nova execucao").fill("pesquise teste");
+  await page
+    .getByRole("button", { name: "Preparar plano", exact: true })
+    .click();
+  await page.locator(".agent-run.failed").waitFor();
+  assert.match(
+    await page.locator(".agent-run.failed").innerText(),
+    /requer o EXE/,
+  );
   assert.deepEqual(errors, []);
   console.log(
     "PASS: four viewports, canvas pixels/motion/drag, commands, persistence, ordering, focus, theme, tasks, audit, pause and reduced motion.",

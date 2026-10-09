@@ -40,4 +40,15 @@ function assetPath(root, url) {
     throw Error("Caminho fora do aplicativo.");
   return resolved;
 }
-module.exports = { requireSender, assetPath };
+function requireRendererAction(action) {
+  if (
+    !action ||
+    typeof action.type !== "string" ||
+    action.type === "tool.web.search" ||
+    action.type.startsWith("agent.")
+  )
+    throw Error(
+      "Use o executor autorizado; transicoes internas nao podem vir do renderer.",
+    );
+}
+module.exports = { requireSender, assetPath, requireRendererAction };

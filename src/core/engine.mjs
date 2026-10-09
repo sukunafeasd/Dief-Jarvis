@@ -12,6 +12,7 @@ import {
   VOICE_DEFAULTS,
   ACCESS_DEFAULTS,
 } from "./model.mjs";
+import { validatePlan, validateStep } from "./tools.mjs";
 
 function panelFrom(text) {
   if (/tarefa|agenda|pendencia/.test(text)) return "tasks";
@@ -164,6 +165,8 @@ export class JarvisEngine {
       );
     return {
       ...state,
+      runs: state.runs || [],
+      agent: state.agent || { provider: "local", model: "", workspace: "" },
       settings: {
         ...VOICE_DEFAULTS,
         ...state.settings,
@@ -192,6 +195,173 @@ export class JarvisEngine {
     let capability = action.type;
     let detail = "";
     switch (action.type) {
+      case "agent.configure":
+        if (!["local", "ollama"].includes(action.provider))
+          throw Error("Provedor invalido.");
+        if (
+          action.provider === "ollama" &&
+          !/^[a-zA-Z0-9_.:/-]{1,120}$/.test(action.model)
+        )
+          throw Error("Modelo invalido.");
+        state.agent.provider = action.provider;
+        state.agent.model = action.provider === "ollama" ? action.model : "";
+        detail = `Planejador ${state.agent.provider}`;
+        break;
+      case "agent.workspace":
+        state.agent.workspace =
+          action.path === "" ? "" : textValue(action.path, 1000);
+        detail = action.path
+          ? "Pasta autorizada selecionada"
+          : "Pasta revogada";
+        break;
+      case "agent.create":
+        if (
+          state.runs.some((run) => ["planning", "running"].includes(run.status))
+        )
+          throw Error("Ja ha uma execucao ativa.");
+        state.runs.unshift({
+          id,
+          goal: textValue(action.goal),
+          summary: "",
+          provider: state.agent.provider,
+          status: "planning",
+          steps: [],
+          createdAt: at,
+          updatedAt: at,
+          error: "",
+        });
+        if (state.runs.length > 100) {
+          const index = state.runs.findLastIndex(
+            (run) => !["planning", "planned", "running"].includes(run.status),
+          );
+          if (index < 0)
+            throw Error(
+              "Conclua ou cancele planos antigos antes de criar outro.",
+            );
+          state.runs.splice(index, 1);
+        }
+        detail = "Pedido de execucao recebido";
+        break;
+      case "agent.plan": {
+        const run = state.runs.find((item) => item.id === action.id);
+        if (!run || run.status !== "planning")
+          throw Error("Plano nao esta aguardando planejamento.");
+        const plan = validatePlan(action.plan);
+        run.summary = plan.summary;
+        run.steps = plan.steps.map((step) => ({
+          ...step,
+          status: "pending",
+          output: "",
+        }));
+        run.status = "planned";
+        run.updatedAt = at;
+        detail = `Plano validado: ${run.steps.length} etapas; aguardando autorizacao`;
+        break;
+      }
+      case "agent.start": {
+        const run = state.runs.find((item) => item.id === action.id);
+        if (!run || run.status !== "planned" || action.confirmed !== true)
+          throw Error("Autorize um plano pendente.");
+        if (
+          state.runs.some((item) =>
+            ["planning", "running"].includes(item.status),
+          )
+        )
+          throw Error("Outra execucao esta ativa.");
+        run.status = "running";
+        run.updatedAt = at;
+        detail = "Plano autorizado pelo operador";
+        break;
+      }
+      case "agent.step": {
+        const run = state.runs.find((item) => item.id === action.id);
+        const step = run?.steps[action.index];
+        if (!run || run.status !== "running" || !step)
+          throw Error("Etapa nao esta ativa.");
+        if (action.status === "running") {
+          if (
+            step.status !== "pending" ||
+            run.steps
+              .slice(0, action.index)
+              .some((item) => item.status !== "completed")
+          )
+            throw Error("Ordem de etapas invalida.");
+        } else if (
+          !["completed", "failed", "cancelled"].includes(action.status) ||
+          step.status !== "running"
+        )
+          throw Error("Transicao de etapa invalida.");
+        step.status = action.status;
+        step.output =
+          action.output === "" || action.output === undefined
+            ? ""
+            : textValue(action.output, 20000);
+        run.updatedAt = at;
+        detail = `${step.tool}: ${step.status}`;
+        status = action.status;
+        break;
+      }
+      case "agent.local": {
+        const run = state.runs.find((item) => item.id === action.id);
+        const step = run?.steps[action.index];
+        if (!run || run.status !== "running" || step?.status !== "running")
+          throw Error("Etapa nao esta ativa.");
+        validateStep({ tool: step.tool, args: step.args });
+        if (step.tool === "task.create") {
+          if (state.tasks.length >= 1000) throw Error("Limite de tarefas.");
+          state.tasks.unshift({
+            id,
+            text: step.args.text,
+            done: false,
+            createdAt: at,
+          });
+          step.output = "Tarefa salva.";
+        } else if (step.tool === "memory.create") {
+          if (state.memories.length >= 1000) throw Error("Limite de memorias.");
+          state.memories.unshift({
+            id,
+            text: step.args.text,
+            source: "Voce",
+            createdAt: at,
+          });
+          step.output = "Memoria salva.";
+        } else if (step.tool === "screen.open") {
+          openPanel(state, step.args.panel);
+          step.output = `${PANELS[step.args.panel]} aberto.`;
+        } else throw Error("Ferramenta externa exige executor nativo.");
+        step.status = "completed";
+        run.updatedAt = at;
+        detail = `${step.tool}: completed`;
+        break;
+      }
+      case "agent.finish": {
+        const run = state.runs.find((item) => item.id === action.id);
+        if (
+          !run ||
+          !["planning", "planned", "running"].includes(run.status) ||
+          !["completed", "failed", "cancelled", "interrupted"].includes(
+            action.status,
+          )
+        )
+          throw Error("Transicao de execucao invalida.");
+        if (
+          action.status === "completed" &&
+          (run.status !== "running" ||
+            !run.steps.length ||
+            run.steps.some((item) => item.status !== "completed"))
+        )
+          throw Error("Plano ainda tem etapas nao concluidas.");
+        run.status = action.status;
+        run.error = action.error ? textValue(action.error, 1000) : "";
+        run.updatedAt = at;
+        for (const step of run.steps) {
+          if (step.status === "running") step.status = "interrupted";
+          else if (step.status === "pending") step.status = "cancelled";
+        }
+        detail = `Execucao ${action.status}`;
+        status = action.status;
+        break;
+      }
       case "chat.send": {
         const content = textValue(action.content);
         const result = interpret(state, content, id, at);
@@ -354,6 +524,24 @@ export class JarvisEngine {
         break;
       default:
         throw Error("Acao nao permitida.");
+    }
+    if (action.type.startsWith("agent.")) {
+      while (
+        new TextEncoder().encode(JSON.stringify(state.runs)).byteLength >
+        2 * 1024 * 1024
+      ) {
+        const index = state.runs.findLastIndex(
+          (run) =>
+            run.id !== action.id &&
+            run.id !== id &&
+            !["planning", "planned", "running"].includes(run.status),
+        );
+        if (index < 0)
+          throw Error(
+            "Historico de planos pendentes muito grande. Cancele planos antigos antes de continuar.",
+          );
+        state.runs.splice(index, 1);
+      }
     }
     state.revision++;
     const payload = {

@@ -1,8 +1,8 @@
 # Dief Jarvis
 
 Assistente pessoal independente do Painel Dief.
-Versao atual: **1.0.0-alpha.2**, segunda etapa da interface. Nao e a versao
-completa 1.0 nem um agente conectado a provedores externos.
+Versao atual: **1.0.0-alpha.3**, primeira camada de planejamento e execucao.
+Nao e a versao completa 1.0. Ollama e opcional e exige um modelo configurado.
 
 ## O que funciona agora
 
@@ -15,16 +15,28 @@ completa 1.0 nem um agente conectado a provedores externos.
 - Aplicativo Electron proprio, sem exigir administrador, com renderer isolado.
 - Ajustes em seis secoes, selecao/teste de voz e movimento explicitamente configuravel.
 - Politicas de acesso com confirmacao, revogacao e pesquisa externa autorizada no EXE.
+- Central de execucoes com plano revisavel, autorizacao, cancelamento, resultados
+  por etapa e recuperacao segura apos interrupcao, sem repetir efeitos externos.
+- Catalogo tipado de oito ferramentas e adaptador Ollama com schema JSON,
+  contexto limitado, prazo de resposta e recusa de saidas incompletas.
+- No EXE: listar/ler arquivos e criar textos sem sobrescrever, em pasta escolhida;
+  exclusao usa a Lixeira do sistema, nunca remove pastas recursivamente.
 - Persistencia browser em IndexedDB; no aplicativo, SQLite com payload protegido
   pelo safeStorage do Windows. Nao ha sincronizacao Mongo nesta etapa.
 
 ## Limites importantes
 
-O interprete de comandos e deterministico: nao e ainda uma IA generativa.
-Nao controla Windows, arquivos externos, contas, e-mails ou agenda.
+O chat comum continua deterministico. Em Execucoes, o planejador pode usar
+comandos locais ou Ollama. Nao controla livremente Windows, contas, e-mails ou
+agenda; arquivos ficam restritos a pasta autorizada. Nao existe shell arbitrario.
 Pesquisa no EXE apenas abre o navegador externo, quando explicitamente autorizada;
 nao le resultados nem navega autonomamente nesta etapa.
 Nenhum conector e mostrado como ativo sem implementacao.
+Ollama usa exclusivamente `127.0.0.1:11434` no processo nativo, sem chaves no
+renderer. Ao conectar, ha consentimento para enviar ate 8 mensagens e 20 memorias.
+Use um modelo instalado localmente; nao baixamos modelos nem contratamos servicos.
+O servico Ollama pode ter seu proprio encaminhamento; o Jarvis nao o audita.
+Planos sao sequencias limitadas, nao um agente autonomo de observacao/replanejamento.
 Voz de entrada browser usa Web Speech quando suportado, somente apos consentimento
 de sessao, e pode usar o servico do navegador. No Electron ela fica indisponivel
 ate integrar o motor de voz dedicado. TTS usa as vozes disponiveis no sistema.
@@ -74,6 +86,20 @@ automaticamente. Releases em `release/`, fora do Git.
 Enter envia, Shift+Enter mantem quebra de linha. Ctrl+K foca a conversa.
 Escape interrompe fala. Dados de teste nao sao enviados para o Painel Dief.
 
+## Execucoes
+
+Abra Execucoes e use, por exemplo, `crie uma tarefa: revisar; mostre tarefas`.
+Separador `;` combina comandos locais. `liste pasta`, `leia arquivo notas.txt`,
+`crie arquivo notas.txt: anotacoes`, `exclua arquivo notas.txt` e `pesquise ...`
+exigem os executores/permissoes correspondentes. Pela conversa, `/agente ...`
+abre o mesmo fluxo de planejamento. Nada e executado so por preparar um plano.
+
+No EXE, autorize arquivos nos Ajustes e escolha uma pasta em Execucoes.
+No modo restrito/supervisionado, cada etapa externa pede confirmacao nativa.
+Modo completo dispensa esse dialogo por etapa, mas nao a autorizacao inicial do
+plano, nem concede UAC ou ferramentas inexistentes. Cancelamento nao desfaz
+etapas concluidas. Falhas/interrupcoes nao recebem repeticao automatica.
+
 ## Testes
 
 `npm test`: contrato de comandos, persistencia, concorrencia, falha de gravacao,
@@ -98,3 +124,5 @@ sem mostrar janela. Valida SQLite protegido, comando e isolamento do renderer.
 Nenhum segredo, banco pessoal ou dados de usuario deve entrar neste repositorio.
 
 Permissoes, limites e direcao de voz: `docs/CONTROLE-E-VOZ.md`.
+Pesquisa e decisoes arquiteturais: `docs/PESQUISA-AGENTES.md`.
+Contrato de execucao: `docs/AGENTE-ALPHA3.md`.

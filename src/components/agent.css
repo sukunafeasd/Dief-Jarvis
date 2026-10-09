@@ -1,0 +1,234 @@
+.agent-console {
+  --line: var(--border);
+  max-width: 1040px;
+  margin: auto;
+  padding-bottom: 30px;
+}
+.agent-setup {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  border-bottom: 1px solid var(--line);
+  padding: 0 0 24px;
+}
+.agent-setup section {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.agent-setup strong {
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.agent-config-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.agent-config-row select {
+  min-width: 0;
+  flex: 1;
+  max-width: 100%;
+  padding: 10px;
+  background: var(--surface, #10161b);
+  color: var(--text, #e7edf0);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.agent-request {
+  margin: 24px 0;
+}
+.agent-request label {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+.agent-request textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 88px;
+  max-height: 240px;
+  padding: 14px;
+  background: #ffffff04;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+}
+.agent-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding-top: 12px;
+}
+.tool-catalog {
+  margin-bottom: 25px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 14px;
+}
+.tool-catalog summary,
+.step-output summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--accent);
+}
+.tool-catalog > div:not(.agent-examples) {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.tool-catalog code {
+  color: var(--muted);
+}
+.agent-examples {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 16px 0 0;
+}
+.agent-examples button {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.agent-history {
+  display: grid;
+  gap: 20px;
+}
+.agent-run {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  padding: 18px;
+  background: #ffffff03;
+  min-width: 0;
+}
+.agent-run.failed,
+.agent-run.interrupted {
+  border-left-color: #f18475;
+}
+.agent-run header,
+.agent-run header > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.agent-run time,
+.run-summary,
+.step-title > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.run-status {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.run-status.failed,
+.run-status.interrupted {
+  color: #f18475;
+}
+.agent-run h2 {
+  font-size: 17px;
+  line-height: 1.5;
+  margin: 14px 0 6px;
+  overflow-wrap: anywhere;
+}
+.agent-run ol {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0;
+}
+.agent-run li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+.step-number {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  font-size: 12px;
+}
+.completed .step-number {
+  color: #83d7ae;
+  border-color: #83d7ae80;
+}
+.step-title {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.step-args,
+.step-output pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 10px 0;
+  max-height: 240px;
+  overflow: auto;
+}
+.step-args {
+  color: var(--muted);
+}
+.agent-run footer {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 15px;
+}
+.agent-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  color: #f4a097;
+  overflow-wrap: anywhere;
+}
+.agent-error svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+@media (max-width: 650px) {
+  .agent-setup {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+  .agent-form-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .agent-form-footer button {
+    width: 100%;
+    justify-content: center;
+  }
+  .tool-catalog > div:not(.agent-examples) {
+    flex-wrap: wrap;
+  }
+  .agent-run {
+    padding: 14px;
+  }
+  .agent-run footer button {
+    flex: 1;
+    justify-content: center;
+  }
+}
