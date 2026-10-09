@@ -373,7 +373,8 @@ export default function Hologram({
     const resize = () => {
       const { width, height } = element.getBoundingClientRect();
       if (!width || !height) return;
-      renderer.setSize(width, height);
+      // CSS owns layout; resizing the backing buffer must not change its host.
+      renderer.setSize(width, height, false);
       camera.aspect = width / height;
       const visibleWidth = Math.min(
         width,

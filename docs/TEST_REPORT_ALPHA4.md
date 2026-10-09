@@ -68,6 +68,9 @@ producao ou tarefa do Painel Dief usado. Binarios alpha.4 nao foram publicados.
     pelo AssistantSession; browser continua local por falta de broker nativo.
 16. Parar durante preparo podia deixar plano pendente: cancela o plano criado
     antes de qualquer execucao. Trocar pasta/modelo bloqueado durante atendimento.
+17. CI Linux nao estabilizava a captura do canvas apos resize: dimensoes CSS
+    independentes do buffer Three.js, teste explicito de estabilidade e leitura
+    direta dos pixels. Evita scroll automatico da captura de elemento animado.
 
 ## Nao verificado / impedimentos
 

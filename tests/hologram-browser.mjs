@@ -94,7 +94,11 @@ try {
         cards.y + cards.height <= controls.y + 1,
       `${name}: cards must fit without covering voice controls`,
     );
-    const png = PNG.sync.read(await page.locator("canvas").screenshot());
+    const canvas = page.locator("canvas"), firstBounds = await canvas.boundingBox();
+    await page.waitForTimeout(200);
+    const settledBounds = await canvas.boundingBox();
+    for (const key of ["x", "y", "width", "height"]) assert.ok(Math.abs(firstBounds[key] - settledBounds[key]) < 1, `${name}: canvas ${key} remains stable`);
+    const png = PNG.sync.read(Buffer.from(await canvas.evaluate((el) => el.toDataURL().split(",")[1]), "base64"));
     let colored = 0;
     for (let i = 0; i < png.data.length; i += 4)
       if (png.data[i] > 90 && png.data[i + 1] > 50) colored++;

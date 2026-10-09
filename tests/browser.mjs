@@ -48,7 +48,7 @@ try {
     assert.ok(
       form.width > 250 && form.x >= 0 && form.x + form.width <= width + 1,
     );
-    const buffer = await page.locator("canvas").screenshot();
+    const buffer = Buffer.from(await page.locator("canvas").evaluate((el) => el.toDataURL().split(",")[1]), "base64");
     const png = PNG.sync.read(buffer);
     let colored = 0;
     for (let i = 0; i < png.data.length; i += 4)
