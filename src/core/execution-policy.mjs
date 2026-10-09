@@ -1,8 +1,15 @@
 import { TOOLS } from "./tools.mjs";
 import { normalize } from "./model.mjs";
+export function taskAuthorized(state) {
+  return (
+    state.settings.access.mode === "full" &&
+    state.settings.access.taskAuthorization === true
+  );
+}
 
 export function autoExecute(plan, state) {
   return (
+    (taskAuthorized(state) && state.agent.autonomy) ||
     plan.steps.every(
       (step) =>
         !TOOLS[step.tool].native && TOOLS[step.tool].risk !== "sensitive",
@@ -13,6 +20,7 @@ export function autoExecute(plan, state) {
   );
 }
 export function approvalRequired(step, state) {
+  if (taskAuthorized(state)) return false;
   const tool = TOOLS[step.tool];
   return (
     tool.risk === "sensitive" ||

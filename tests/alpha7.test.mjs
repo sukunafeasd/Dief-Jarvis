@@ -87,7 +87,7 @@ test("pins persist, reject forged topics and never fabricate data or privilege",
   await f.engine.execute({ type: "chat.send", content: "fixe clima" });
   const state = await new JarvisEngine(f.storage).read();
   assert.deepEqual(state.pins, ["weather"]);
-  assert.equal(state.settings.access.commands, false);
+  assert.equal(state.settings.access.commands, true);
   assert.deepEqual(presentationFor(state, "weather").items, []);
   await assert.rejects(
     f.engine.execute({ type: "screen.pin", topic: "gmail", value: true }),

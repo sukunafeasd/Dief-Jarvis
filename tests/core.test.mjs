@@ -32,8 +32,12 @@ function fixture() {
     tamper: (fn) => fn(state),
   };
 }
-test("access expansion requires explicit consent, revocation is immediate and cannot bypass normal settings", async () => {
+test("optional supervised access requires consent, revocation is immediate and cannot bypass normal settings", async () => {
   const f = fixture();
+  await f.engine.execute({
+    type: "permissions.update",
+    access: { mode: "restricted", web: false, taskAuthorization: false },
+  });
   await assert.rejects(
     f.engine.execute({
       type: "permissions.update",
@@ -114,7 +118,7 @@ test("alpha1 saved workspaces receive new defaults without deleting data or rewr
   const old = f.read();
   const loaded = await f.engine.read();
   assert.equal(loaded.settings.voiceLang, "pt-BR");
-  assert.equal(loaded.settings.access.mode, "restricted");
+  assert.equal(loaded.settings.access.mode, "full");
   assert.deepEqual(loaded.audit, old.audit);
   assert.deepEqual(loaded.tasks, old.tasks);
   assert.deepEqual(f.read(), old);

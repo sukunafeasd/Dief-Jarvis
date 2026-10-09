@@ -149,28 +149,23 @@ try {
     .getByLabel("Nova execucao")
     .fill("crie uma tarefa: Agent browser test; mostre tarefas");
   await page
-    .getByRole("button", { name: "Preparar plano", exact: true })
-    .click();
-  await page.locator(".agent-run.planned").waitFor();
-  await page
-    .getByRole("button", { name: "Autorizar e executar", exact: true })
-    .click();
-  await page
-    .locator(".modal")
-    .getByRole("button", { name: "Cancelar", exact: true })
-    .click();
-  assert.equal(await page.locator(".agent-run.planned").count(), 1);
-  await page
-    .getByRole("button", { name: "Autorizar e executar", exact: true })
-    .click();
-  await page
-    .locator(".modal")
-    .getByRole("button", { name: "Confirmar", exact: true })
+    .getByRole("button", { name: "Executar tarefa", exact: true })
     .click();
   await page
     .locator(".agent-run.completed")
     .filter({ hasText: "Agent browser test" })
     .waitFor();
+  assert.equal(
+    await page.locator(".modal").count(),
+    0,
+    "task executes without another confirmation",
+  );
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Escolher pasta", exact: true })
+      .count(),
+    0,
+  );
   await navigate("Tarefas");
   await page
     .getByRole("button", { name: "Concluir Revisar interface", exact: true })
@@ -215,16 +210,35 @@ try {
     .getByRole("combobox", { name: "Motor da voz" })
     .selectOption("neural");
   await page.getByRole("button", { name: "Acesso ao PC", exact: true }).click();
-  await page
-    .getByRole("combobox", { name: "Politica de acesso" })
-    .selectOption("full");
-  await page.getByRole("button", { name: "Cancelar", exact: true }).click();
   assert.equal(
-    await page
-      .getByRole("combobox", { name: "Politica de acesso" })
-      .inputValue(),
-    "restricted",
+    await page.getByRole("combobox", { name: "Politica de acesso" }).count(),
+    0,
   );
+  const execution = page.getByLabel("Executar as tarefas solicitadas", {
+    exact: false,
+  });
+  assert.equal(await execution.isChecked(), true);
+  await execution.click();
+  await page.waitForFunction(async () => {
+    const { JarvisEngine } = await import("/src/core/engine.mjs");
+    const { browserStorage } = await import("/src/core/storage.mjs");
+    return (
+      (await new JarvisEngine(browserStorage()).read()).agent.autonomy === false
+    );
+  });
+  assert.equal(await execution.isChecked(), false);
+  await execution.click();
+  await page.waitForFunction(async () => {
+    const { JarvisEngine } = await import("/src/core/engine.mjs");
+    const { browserStorage } = await import("/src/core/storage.mjs");
+    return (
+      (await new JarvisEngine(browserStorage()).read()).agent.autonomy === true
+    );
+  });
+  await page.getByRole("button", { name: "Voz e audio", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Motor da voz" })
+    .selectOption("clone");
   for (const [width, height, name] of [
     [1440, 900, "settings"],
     [393, 851, "settings-mobile"],

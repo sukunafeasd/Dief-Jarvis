@@ -1,6 +1,6 @@
 {
   "name": "dief-jarvis",
-  "version": "1.0.0-alpha.7",
+  "version": "1.0.0-alpha.8",
   "private": true,
   "description": "Central de comando pessoal Dief Jarvis.",
   "author": "Equipe Dief",
@@ -22,6 +22,8 @@
     "test:voice-style": "node tests/voice-style-browser.mjs",
     "test:presentation": "node tests/presentation-browser.mjs",
     "prepare:voice": "node scripts/prepare-voice.mjs",
+    "prepare:clone": "node scripts/prepare-clone.mjs",
+    "test:clone": "node tests/clone-synthesis.mjs",
     "build:helper": "node scripts/build-desktop-helper.mjs",
     "verify:package": "node scripts/verify-package.mjs",
     "desktop": "electron .",
@@ -68,6 +70,10 @@
     "asar": true,
     "extraResources": [
       {
+        "from": "desktop/clone-worker.py",
+        "to": "voice/clone-worker.py"
+      },
+      {
         "from": "desktop/native/DiefJarvis.Desktop.exe",
         "to": "native/DiefJarvis.Desktop.exe"
       },
@@ -81,6 +87,7 @@
       "desktop/**/*",
       "!desktop/native/*.exe",
       "!desktop/native/helper-integrity.json",
+      "!desktop/clone-worker.py",
       "src/core/**/*",
       "licenses/**/*",
       "package.json"

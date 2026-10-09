@@ -41,6 +41,18 @@ export default function Startup({ status, progress, request, error }) {
         </button>
       </header>
       <div className="startup-items">
+        {status?.clone?.required && (
+          <div>
+            <span>Voz de referencia / XTTS</span>
+            <strong>
+              {status.clone.ready ? (
+                <Check size={16} />
+              ) : (
+                "Preparacao local necessaria"
+              )}
+            </strong>
+          </div>
+        )}
         <div>
           <span>Voz e reconhecimento local</span>
           <strong>

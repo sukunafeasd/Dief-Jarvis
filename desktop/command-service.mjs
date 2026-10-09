@@ -1,7 +1,7 @@
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
-import { checkedPath } from "./workspace.mjs";
+import { checkedPath, checkedPcPath } from "./workspace.mjs";
 import { validateStep } from "../src/core/tools.mjs";
 export function powerShellSource(script) {
   return `[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)\n$OutputEncoding = [Console]::OutputEncoding\n${script}`;
@@ -12,7 +12,10 @@ export async function commandTool(root, step, signal, options = {}) {
   if (step.tool !== "command.execute") throw Error("Comando desconhecido.");
   if ((options.platform || process.platform) !== "win32")
     throw Error("Executor PowerShell disponivel no Windows.");
-  const cwd = await checkedPath(root, step.args.directory);
+  const cwd = await (options.fullAccess ? checkedPcPath : checkedPath)(
+    root,
+    step.args.directory,
+  );
   signal.throwIfAborted();
   if (/\x00/.test(step.args.script)) throw Error("Script invalido.");
   const launch = options.spawn || spawn,
@@ -90,10 +93,12 @@ export async function commandTool(root, step, signal, options = {}) {
     };
     const collect = (chunk, decoder) => {
       bytes += chunk.length;
-      if (bytes > 256000) return stop();
-      output += decoder.write(chunk);
+      const text = decoder.write(chunk);
+      if (output.length < 64000) output += text.slice(0, 64000 - output.length);
     };
-    const timer = setTimeout(stop, options.timeoutMs || 120000);
+    const timer = options.timeoutMs
+      ? setTimeout(stop, options.timeoutMs)
+      : null;
     child.stdout?.on("data", (chunk) => collect(chunk, outDecoder));
     child.stderr?.on("data", (chunk) => collect(chunk, errDecoder));
     child.once("error", (error) => finish(error));
@@ -104,6 +109,7 @@ export async function commandTool(root, step, signal, options = {}) {
           JSON.stringify({
             exitCode: code,
             output: output + outDecoder.end() + errDecoder.end(),
+            truncated: bytes > 256000 || output.length >= 64000,
             status: code === 0 ? "completed" : "error",
             workingDirectory: cwd,
             note: "Codigo de saida nao prova que o objetivo foi atingido; verifique o resultado. Nenhuma alteracao e desfeita automaticamente.",

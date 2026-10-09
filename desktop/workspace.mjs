@@ -2,6 +2,35 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import { constants } from "node:fs";
 import { validateStep } from "../src/core/tools.mjs";
+import os from "node:os";
+
+export async function checkedPcPath(base, candidate, create = false) {
+  if (
+    typeof candidate !== "string" ||
+    !candidate ||
+    candidate.length > 2048 ||
+    /[\x00-\x1f]/.test(candidate) ||
+    /^[a-z]:[^\\/]/i.test(candidate) ||
+    /^\\\\[?.]\\/.test(candidate)
+  )
+    throw Error("Caminho do computador invalido.");
+  const target = path.resolve(base || os.homedir(), candidate);
+  const parts = target.slice(path.parse(target).root.length).split(/[\\/]/);
+  if (
+    parts.some(
+      (part) =>
+        /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part) ||
+        /[<>"|?*]/.test(part) ||
+        /[. ]$/.test(part),
+    )
+  )
+    throw Error("Nome de arquivo invalido.");
+  if (create) {
+    const parent = await fs.realpath(path.dirname(target));
+    return path.join(parent, path.basename(target));
+  }
+  return fs.realpath(target);
+}
 
 export async function checkedPath(root, relative, create = false) {
   if (typeof root !== "string" || !path.isAbsolute(root))
@@ -55,10 +84,17 @@ export async function checkedPath(root, relative, create = false) {
     throw Error("Caminho fora da pasta autorizada.");
   return target;
 }
-export async function workspaceTool(root, step, signal, trashItem) {
+export async function workspaceTool(
+  root,
+  step,
+  signal,
+  trashItem,
+  options = {},
+) {
   validateStep(step);
   signal.throwIfAborted();
-  const target = await checkedPath(
+  const resolvePath = options.fullAccess ? checkedPcPath : checkedPath;
+  const target = await resolvePath(
     root,
     step.args.path,
     step.tool === "workspace.create",
@@ -142,7 +178,7 @@ export async function workspaceTool(root, step, signal, trashItem) {
   if (step.tool === "workspace.trash") {
     if (typeof trashItem !== "function")
       throw Error("Lixeira do sistema indisponivel.");
-    await checkedPath(root, step.args.path);
+    await resolvePath(root, step.args.path);
     await trashItem(target);
     return `Arquivo enviado para a Lixeira do sistema: ${step.args.path}.`;
   }

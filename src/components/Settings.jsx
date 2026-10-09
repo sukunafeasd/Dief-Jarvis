@@ -8,7 +8,6 @@ import {
   Cpu,
   Play,
   Search,
-  LockKeyhole,
   Download,
   Check,
   Plug,
@@ -68,6 +67,7 @@ export default function Settings({
   confirm,
   exportData,
   previewVoice,
+  voicePhase,
   onSearch,
   onAutonomy,
   onElevate,
@@ -78,6 +78,8 @@ export default function Settings({
   const [query, setQuery] = useState("");
   const [voices, setVoices] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [executionSaving, setExecutionSaving] = useState(false);
+  const [voiceTesting, setVoiceTesting] = useState(false);
   const options = { ...VOICE_DEFAULTS, ...state.settings };
   const access = { ...ACCESS_DEFAULTS, ...options.access };
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -91,22 +93,6 @@ export default function Settings({
     return () => speechSynthesis.removeEventListener("voiceschanged", load);
   }, []);
   const save = (changes) => act({ type: "settings.update", changes });
-  const permit = (changes) => {
-    const next = { ...access, ...changes };
-    const expands =
-      (next.mode === "full" && access.mode !== "full") ||
-      ["web", "files", "desktop", "commands", "admin"].some(
-        (key) => next[key] && !access[key],
-      );
-    const run = () =>
-      act({ type: "permissions.update", access: next, confirmed: expands });
-    if (expands)
-      confirm(
-        "Autorizar este acesso? Pesquisa envia o texto ao navegador externo. Arquivos e controle do PC podem afetar dados pessoais; administrador depende do UAC. Executores ainda indisponiveis NAO sao ativados por esta autorizacao. Voce pode revogar a qualquer momento.",
-        run,
-      );
-    else run();
-  };
   const toggle = (key, label) => (
     <label className="setting-row" key={key}>
       <span>{label}</span>
@@ -315,6 +301,7 @@ export default function Settings({
                   })
                 }
               >
+                <option value="clone">Referencia local / XTTS · padrao</option>
                 <option value="neural">Neural local / Kokoro</option>
                 <option value="system">Voz do sistema</option>
                 <option value="azure">
@@ -337,7 +324,7 @@ export default function Settings({
                   }
                 >
                   <option value="dief_pt">
-                    Dief Jarvis / portugues · padrao
+                    Dief / portugues · alternativa leve
                   </option>
                   <option value="pm_alex">Alex / portugues masculino</option>
                   <option value="pm_santa">Santa / portugues masculino</option>
@@ -354,7 +341,7 @@ export default function Settings({
               <span>Idioma da voz</span>
               <select
                 aria-label="Idioma da voz"
-                disabled={options.voiceEngine === "azure"}
+                disabled={["azure", "clone"].includes(options.voiceEngine)}
                 value={options.voiceLang}
                 onChange={(event) =>
                   save({
@@ -406,35 +393,49 @@ export default function Settings({
             {slider("voiceVolume", "Volume", 0, 1, 0.05)}
             <button
               className="secondary-button"
-              onClick={() =>
-                previewVoice(
-                  options.voiceLang === "en-GB"
-                    ? "Good evening. Dief Jarvis is ready. Awaiting your instructions."
-                    : "Boa noite. Dief Jarvis esta pronto. Aguardando suas instrucoes.",
-                  options,
-                )
-              }
+              disabled={voiceTesting}
+              onClick={async () => {
+                setVoiceTesting(true);
+                try {
+                  await previewVoice(
+                    options.voiceLang === "en-GB"
+                      ? "Good evening. Dief Jarvis is ready. Awaiting your instructions."
+                      : "Boa noite. Dief Jarvis esta pronto. Aguardando suas instrucoes.",
+                    options,
+                  );
+                } finally {
+                  setVoiceTesting(false);
+                }
+              }}
             >
               <Play size={16} />
-              Testar voz
+              {voiceTesting
+                ? voicePhase === "speaking"
+                  ? "Reproduzindo voz..."
+                  : "Preparando voz..."
+                : "Testar voz"}
             </button>
             <div className="config-note">
               <Mic size={18} />
               <p>
-                Perfis licenciados de voz, nao a voz oficial ou clonada do
-                filme. Toque no nucleo para ouvir ou adormecer. O microfone
-                precisa estar autorizado no navegador ou Windows. Vozes audiveis
-                de outras pessoas tambem podem acionar o nome Jarvis.
+                Sintese de novas falas com referencia local quando XTTS esta
+                selecionado. Kokoro e Azure sao alternativas separadas. O
+                microfone precisa estar autorizado no navegador ou Windows.
+                Vozes audiveis de outras pessoas tambem podem acionar o nome
+                Jarvis.
               </p>
             </div>
             <div className="voice-direction">
               <span className="eyebrow">PERFIS LOCAIS</span>
-              <strong>Dief / portugues. George / ingles britanico.</strong>
+              <strong>
+                Referencia XTTS / portugues. Kokoro / alternativa leve.
+              </strong>
               <p>
                 Sintese executada no dispositivo, sem cobrar por fala ou enviar
-                texto a um servico de voz quando Kokoro esta selecionado.
-                Pronuncia revisada em portugues; semelhanca com o filme e
-                subjetiva. Azure e uma alternativa online configuravel.
+                texto a um servico de voz quando XTTS ou Kokoro esta
+                selecionado. A referencia e o modelo precisam estar preparados
+                no dispositivo. Qualidade depende da amostra; CPU pode levar
+                mais tempo. Azure e uma alternativa online configuravel.
               </p>
               {!window.jarvisDesktop && (
                 <a
@@ -453,113 +454,66 @@ export default function Settings({
             <div className="config-note">
               <ShieldCheck size={18} />
               <p>
-                Autorizacoes do assistente. Acesso total nao equivale a
-                administrador nem ativa ferramentas inexistentes. UAC e campos
-                protegidos na automacao visual sao manuais. Comandos aprovados
-                nao sao executados em sandbox.
+                A tarefa que voce der autoriza sua execucao no EXE, inclusive
+                comandos PowerShell e arquivos fora de uma pasta especifica. O
+                Jarvis continua respeitando os direitos do processo no Windows.
+                Qualquer voz audivel pode aciona-lo; nao ha verificacao do
+                falante. Interromper nao desfaz acoes ja concluidas.
               </p>
             </div>
-            <label className="setting-row">
-              <span>Politica de acesso</span>
-              <select
-                aria-label="Politica de acesso"
-                value={access.mode}
-                onChange={(event) =>
-                  permit({
-                    mode: event.target.value,
-                    ...(event.target.value === "full"
-                      ? {
-                          web: true,
-                          files: true,
-                          desktop: true,
-                          commands: true,
-                          admin: true,
-                        }
-                      : event.target.value === "restricted"
-                        ? {
-                            web: false,
-                            files: false,
-                            desktop: false,
-                            commands: false,
-                            admin: false,
-                          }
-                        : {}),
-                  })
-                }
-              >
-                <option value="restricted">Restrito</option>
-                <option value="supervised">Supervisionado</option>
-                <option value="full">Acesso total autorizado</option>
-              </select>
-            </label>
             {[
-              [
-                "web",
-                "Pesquisar na web",
-                platform.capabilities?.web
-                  ? "Executor disponivel no EXE"
-                  : "Somente no EXE",
-              ],
+              ["web", "Navegador e pesquisa", "Navegador agente no EXE"],
               [
                 "files",
-                "Ler, criar textos e usar a Lixeira",
-                platform.capabilities?.files
-                  ? "Area escolhida em Execucoes; disco inteiro exige confirmacao"
-                  : "Disponivel no EXE",
+                "Arquivos do computador",
+                "Caminhos absolutos e relativos; sem pasta obrigatoria",
               ],
               [
                 "desktop",
-                "Interagir com controles das janelas",
-                platform.capabilities?.desktop
-                  ? "UI Automation / controles acessiveis; campos protegidos bloqueados"
-                  : "Somente no EXE Windows",
+                "Janelas e aplicativos",
+                "Controles acessiveis do Windows",
               ],
               [
                 "commands",
-                "Executar comandos locais",
-                "PowerShell no EXE Windows; script completo exige aprovacao",
-              ],
-              [
-                "admin",
-                "Solicitar administrador",
-                platform.capabilities?.admin
-                  ? "Solicitacao separada ao UAC; nunca automatica"
-                  : "Disponivel no EXE Windows",
+                "PowerShell",
+                "Privilegios herdados do EXE; sem sandbox de pasta",
               ],
             ].map(([key, label, status]) => (
-              <label className="setting-row permission-row" key={key}>
+              <div className="setting-row permission-row" key={key}>
                 <span>
                   {label}
                   <small>{status}</small>
                 </span>
-                <input
-                  className="toggle"
-                  type="checkbox"
-                  checked={access[key]}
-                  onChange={(event) => permit({ [key]: event.target.checked })}
-                />
-              </label>
+                <span className="setting-value">
+                  {access[key]
+                    ? window.jarvisDesktop
+                      ? "Habilitado"
+                      : "Requer EXE"
+                    : "Desativado"}
+                </span>
+              </div>
             ))}
-            <button
-              className="secondary-button"
-              onClick={() => permit({ ...ACCESS_DEFAULTS })}
-            >
-              <LockKeyhole size={16} />
-              Revogar todos os acessos
-            </button>
             <label className="setting-row">
               <span>
-                Autonomia de operacoes rotineiras
+                Executar as tarefas solicitadas
                 <small>
-                  Autorizacao por sessao; alto risco mantem confirmacao
+                  Ativo por padrao. Desligar deixa planos em espera.
                 </small>
               </span>
               <input
                 type="checkbox"
                 className="toggle"
                 checked={state.agent.autonomy}
-                disabled={!window.jarvisDesktop}
-                onChange={(event) => onAutonomy(event.target.checked)}
+                disabled={executionSaving}
+                onChange={async (event) => {
+                  const value = event.target.checked;
+                  setExecutionSaving(true);
+                  try {
+                    await onAutonomy(value);
+                  } finally {
+                    setExecutionSaving(false);
+                  }
+                }}
               />
             </label>
             {!!platform.capabilities?.admin && (
@@ -568,7 +522,7 @@ export default function Settings({
                 disabled={!access.admin}
                 onClick={onElevate}
               >
-                <ShieldCheck size={15} /> Solicitar administrador pelo UAC
+                <ShieldCheck size={15} /> Reiniciar como administrador
               </button>
             )}
             <form
@@ -680,9 +634,9 @@ export default function Settings({
               <Plug size={18} />
               <p>
                 Executores separados para web, arquivos e controles Windows, com
-                cancelamento e auditoria. Acoes sensiveis pedem confirmacao.
-                Esta alpha nao executa shell livre nem ignora protecoes do
-                Windows.
+                interrupcao e auditoria. A tarefa solicitada autoriza a
+                execucao, inclusive PowerShell. Os privilegios e as protecoes do
+                Windows continuam valendo.
               </p>
             </div>
           </>

@@ -81,10 +81,9 @@ export class AssistantSession {
       throw Error("Ja estou atendendo uma tarefa. Interrompa ou aguarde.");
     const abort = new AbortController();
     this.active = abort;
-    const timeout = setTimeout(
-      () => this.stop(),
-      this.options.timeoutMs || 900000,
-    );
+    const timeout = this.options.timeoutMs
+      ? setTimeout(() => this.stop(), this.options.timeoutMs)
+      : null;
     try {
       if (/^(?:jarvis|oi|ola)[!.?\s]*$/i.test(content)) {
         const state = await this.engine.read();
@@ -103,8 +102,7 @@ export class AssistantSession {
           .filter((step) => TOOLS[step.tool].risk !== "read")
           .map(({ tool, args }) => canonical({ tool, args })),
       );
-      let steps = 0;
-      for (let round = 0; round < 24; round++) {
+      for (;;) {
         abort.signal.throwIfAborted();
         const state = await this.engine.read();
         let decision;
@@ -135,10 +133,6 @@ export class AssistantSession {
             reply: decision.summary,
             continuation: options.continuation === true,
           });
-        if (steps + decision.steps.length > 64)
-          throw Error(
-            "Atendimento longo: confira as 64 etapas registradas antes de continuar.",
-          );
         const proposedEffects = new Set(completedEffects);
         for (const step of decision.steps) {
           if (
@@ -179,11 +173,7 @@ export class AssistantSession {
         for (const step of decision.steps)
           if (TOOLS[step.tool].risk !== "read")
             completedEffects.add(canonical(step));
-        steps += decision.steps.length;
       }
-      throw Error(
-        "Limite de ciclos atingido; a tarefa parou sem continuar automaticamente.",
-      );
     } catch (error) {
       const reply = abort.signal.aborted
         ? "Interrompi o atendimento. Acoes ja concluidas continuam registradas."

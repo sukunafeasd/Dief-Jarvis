@@ -124,30 +124,6 @@ app
         path.join(app.getAppPath(), "src/core/execution-policy.mjs"),
       ).href
     );
-    let autonomyAuthorized = false,
-      autonomyConsent = null;
-    const authorizeAutonomy = async () => {
-      if (autonomyAuthorized) return;
-      autonomyConsent ||= dialog
-        .showMessageBox(window, {
-          type: "warning",
-          buttons: ["Autorizar esta sessao", "Cancelar"],
-          defaultId: 1,
-          cancelId: 1,
-          message: "Autorizar operacoes autonomas nesta sessao?",
-          detail:
-            "No modo acesso total, o Jarvis podera navegar, clicar, preencher controles e criar arquivos de texto na area autorizada para cumprir seus pedidos, sem confirmar cada operacao rotineira. Pode haver erros de interpretacao. Excluir arquivos, compras, envios, publicacoes e outros controles reconhecidos como alto risco pedem confirmacao. Qualquer voz audivel pode acionar Jarvis; nao ha identificacao do falante. Parar interrompe o atendimento e voce pode revogar os acessos. UAC e senhas continuam manuais.",
-        })
-        .then((result) => {
-          if (result.response !== 0)
-            throw Error("Autonomia desta sessao nao autorizada.");
-          autonomyAuthorized = true;
-        })
-        .finally(() => {
-          autonomyConsent = null;
-        });
-      await autonomyConsent;
-    };
     const { techHeadlines } = await loadDesktop("news.mjs");
     const { ComponentInstaller, runtimeRoot } =
       await loadDesktop("components.mjs");
@@ -166,6 +142,12 @@ app
       progress: sendProgress,
     });
     const voiceService = new VoiceService(componentsRoot);
+    const { ClonedVoice } = await loadDesktop("clone-voice.mjs");
+    const clonedVoice = new ClonedVoice({
+      workerPath: app.isPackaged
+        ? path.join(process.resourcesPath, "voice", "clone-worker.py")
+        : path.join(__dirname, "clone-worker.py"),
+    });
     const { AzureVoice, validateAzureConfig } =
       await loadDesktop("azure-voice.mjs");
     database.exec(
@@ -190,7 +172,7 @@ app
     const { ollamaModels, ollamaPlan } = await import(
       pathToFileURL(path.join(app.getAppPath(), "src/core/ollama.mjs")).href
     );
-    const { workspaceTool, checkedPath } = await import(
+    const { workspaceTool, checkedPath, checkedPcPath } = await import(
       pathToFileURL(path.join(__dirname, "workspace.mjs")).href
     );
     const { TOOLS } = await import(
@@ -203,12 +185,6 @@ app
       },
       planner: ollamaPlan,
       requiresApproval: async (step, state) => {
-        if (
-          state.agent.autonomy &&
-          !autonomyAuthorized &&
-          TOOLS[step.tool].risk !== "read"
-        )
-          return true;
         if (TOOLS[step.tool].risk !== "interaction") return false;
         if (["web.click", "web.fill"].includes(step.tool))
           return criticalInteraction(
@@ -289,7 +265,9 @@ app
       execute: async (step, state, signal) => {
         signal.throwIfAborted();
         if (step.tool === "command.execute")
-          return commandTool(state.agent.workspace, step, signal);
+          return commandTool(state.agent.workspace, step, signal, {
+            fullAccess: state.settings.access.mode === "full",
+          });
         if (step.tool === "web.open")
           return browserAgent.open(step.args.url, signal);
         if (step.tool === "web.observe") return browserAgent.observe();
@@ -393,8 +371,12 @@ app
           window.webContents.send("jarvis:state", card.state);
           return JSON.stringify(forecast);
         }
-        return workspaceTool(state.agent.workspace, step, signal, (target) =>
-          shell.trashItem(target),
+        return workspaceTool(
+          state.agent.workspace,
+          step,
+          signal,
+          (target) => shell.trashItem(target),
+          { fullAccess: state.settings.access.mode === "full" },
         );
       },
     });
@@ -525,7 +507,7 @@ app
           ["web", "files", "desktop", "commands", "admin"].some(
             (key) => next[key] && !current[key],
           );
-        if (expands) {
+        if (expands && !next.taskAuthorization && !current.taskAuthorization) {
           const result = await dialog.showMessageBox(window, {
             type: "warning",
             title: "Autorizar Dief Jarvis",
@@ -540,13 +522,6 @@ app
             throw Error("Autorizacao cancelada. Acesso anterior preservado.");
         }
         action = { ...action, confirmed: true };
-        if (
-          (next.mode !== undefined && next.mode !== "full") ||
-          ["web", "files", "desktop", "commands", "admin"].some(
-            (key) => next[key] === false,
-          )
-        )
-          autonomyAuthorized = false;
       }
       return engine.execute(action);
     });
@@ -557,10 +532,6 @@ app
       if (request.op === "autonomy") {
         if (assistant.active || agent.active)
           throw Error("Interrompa a tarefa antes de alterar a autonomia.");
-        if (request.value === true) {
-          await authorizeAutonomy();
-        }
-        if (request.value === false) autonomyAuthorized = false;
         return engine.execute({
           type: "agent.autonomy",
           value: request.value,
@@ -575,16 +546,6 @@ app
           throw Error("Autorize a solicitacao de administrador primeiro.");
         if (assistant.active || agent.active)
           throw Error("Interrompa a tarefa antes de reiniciar.");
-        const choice = await dialog.showMessageBox(window, {
-          type: "warning",
-          defaultId: 1,
-          cancelId: 1,
-          buttons: ["Solicitar UAC e reiniciar", "Cancelar"],
-          message: "Reiniciar Dief Jarvis com administrador?",
-          detail:
-            "O Windows exibira o UAC e voce precisa autorizar. Nao controlamos o desktop seguro, nao aceitamos o aviso automaticamente e nao desativamos protecoes. Use somente quando uma tarefa legitimamente exigir elevacao.",
-        });
-        if (choice.response !== 0) throw Error("Solicitacao cancelada.");
         const quoted = (value) => "'" + value.replace(/'/g, "''") + "'";
         const executable = app.getPath("exe");
         const args = app.isPackaged
@@ -626,10 +587,12 @@ app
       )
         throw Error("Assistente ocupado ou preparacao inicial incompleta.");
       if (request.op === "plan") return agent.plan(request.goal);
+      if (request.op === "task") {
+        if (!runtimeReady || agent.active || assistant.active)
+          throw Error("Assistente ocupado ou preparacao incompleta.");
+        return assistant.respond(request.goal);
+      }
       if (request.op === "run") {
-        const state = await engine.read();
-        if (state.agent.autonomy && state.settings.access.mode === "full")
-          await authorizeAutonomy();
         const result = await agent.run(request.id);
         if (
           result.state.agent.autonomy &&
@@ -648,16 +611,18 @@ app
           const models = await ollamaModels();
           if (!models.includes(request.model))
             throw Error("Modelo nao esta instalado neste Ollama.");
-          const answer = await dialog.showMessageBox(window, {
-            type: "question",
-            defaultId: 1,
-            cancelId: 1,
-            buttons: ["Usar modelo local", "Cancelar"],
-            message: "Autorizar contexto para o Ollama?",
-            detail:
-              "Pedidos de planejamento enviarao as ultimas 8 mensagens e ate 20 memorias ao servico em 127.0.0.1:11434. Configure o Ollama para usar um modelo local; o Jarvis nao verifica se o servico encaminha dados. Nada sera executado sem autorizar o plano.",
-          });
-          if (answer.response !== 0) throw Error("Configuracao cancelada.");
+          if (!(await engine.read()).settings.access.taskAuthorization) {
+            const answer = await dialog.showMessageBox(window, {
+              type: "question",
+              defaultId: 1,
+              cancelId: 1,
+              buttons: ["Usar modelo local", "Cancelar"],
+              message: "Autorizar contexto para o Ollama?",
+              detail:
+                "Pedidos de planejamento enviarao as ultimas 8 mensagens e ate 20 memorias ao servico em 127.0.0.1:11434. Configure o Ollama para usar um modelo local; o Jarvis nao verifica se o servico encaminha dados. Nada sera executado sem autorizar o plano.",
+            });
+            if (answer.response !== 0) throw Error("Configuracao cancelada.");
+          }
         }
         return engine.execute({
           type: "agent.configure",
@@ -674,13 +639,16 @@ app
         if (!access.files)
           throw Error("Autorize arquivos nos ajustes primeiro.");
         const picked = await dialog.showOpenDialog(window, {
-          title: "Escolher pasta autorizada do Jarvis",
+          title: "Diretorio inicial opcional do Jarvis",
           properties: ["openDirectory"],
         });
         if (picked.canceled || !picked.filePaths[0])
           throw Error("Selecao de pasta cancelada.");
         const selected = picked.filePaths[0];
-        if (path.parse(selected).root === selected) {
+        if (
+          path.parse(selected).root === selected &&
+          !access.taskAuthorization
+        ) {
           if (access.mode !== "full")
             throw Error("Um disco inteiro exige modo acesso total.");
           const consent = await dialog.showMessageBox(window, {
@@ -694,7 +662,10 @@ app
           });
           if (consent.response !== 0) throw Error("Acesso ao disco cancelado.");
         }
-        await checkedPath(selected, ".");
+        await (access.mode === "full" ? checkedPcPath : checkedPath)(
+          selected,
+          ".",
+        );
         return engine.execute({ type: "agent.workspace", path: selected });
       }
       throw Error("Operacao de agente desconhecida.");
@@ -708,9 +679,6 @@ app
       if (!runtimeReady) throw Error("Conclua a preparacao inicial do Jarvis.");
       if (assistant.active || agent.active)
         throw Error("Assistente ocupado; interrompa ou aguarde.");
-      const state = await engine.read();
-      if (state.agent.autonomy && state.settings.access.mode === "full")
-        await authorizeAutonomy();
       const result = await assistant.respond(request?.content);
       if (window && !window.isDestroyed())
         window.webContents.send("jarvis:state", result.state);
@@ -757,11 +725,13 @@ app
       if (request?.op === "stop") {
         micGranted = false;
         await voiceService.stop();
+        await clonedVoice.stop();
         azureVoice.stop();
         return true;
       }
       if (request?.op === "cancel-speech") {
         await voiceService.stop();
+        await clonedVoice.stop();
         azureVoice.stop();
         return true;
       }
@@ -773,11 +743,13 @@ app
       }
       if (request?.op === "speak")
         return Uint8Array.from(
-          await (request.engine === "azure" ? azureVoice : voiceService).speak(
-            request.text,
-            request.profile,
-            request.speed,
-          ),
+          await (
+            request.engine === "azure"
+              ? azureVoice
+              : request.engine === "clone"
+                ? clonedVoice
+                : voiceService
+          ).speak(request.text, request.profile, request.speed),
         );
       throw Error("Operacao de voz desconhecida.");
     });
@@ -888,6 +860,7 @@ app
       assistant.stop();
       browserAgent.close();
       voiceService.stop();
+      clonedVoice.stop();
       azureVoice.stop();
       installer.cancel();
       setupAbort?.abort();
@@ -898,6 +871,7 @@ app
       if (current?.settings.listenInBackground) return;
       micGranted = false;
       voiceService.stop();
+      clonedVoice.stop();
       azureVoice.stop();
     };
     window.on("minimize", suspendVoice);

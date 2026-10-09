@@ -4,8 +4,6 @@ import {
   Play,
   Square,
   RefreshCw,
-  FolderOpen,
-  X,
   Check,
   ChevronDown,
   AlertTriangle,
@@ -15,7 +13,7 @@ import "./agent.css";
 
 const statuses = {
   planning: "Planejando",
-  planned: "Aguardando autorizacao",
+  planned: "Plano pronto",
   running: "Executando",
   completed: "Concluido",
   failed: "Falhou",
@@ -24,7 +22,7 @@ const statuses = {
   pending: "Pendente",
 };
 const when = (at) => new Date(at).toLocaleString("pt-BR");
-export default function AgentConsole({ state, request, native, confirm }) {
+export default function AgentConsole({ state, request, native }) {
   const [goal, setGoal] = useState("");
   const [working, setWorking] = useState(false);
   const [models, setModels] = useState([]);
@@ -102,10 +100,7 @@ export default function AgentConsole({ state, request, native, confirm }) {
                 className="primary-button"
                 disabled={working || !!active || !model}
                 onClick={() =>
-                  confirm(
-                    "Enviar pedidos, ultimas 8 mensagens e ate 20 memorias ao servico Ollama local?",
-                    () => call({ op: "configure", provider: "ollama", model }),
-                  )
+                  call({ op: "configure", provider: "ollama", model })
                 }
               >
                 Conectar
@@ -119,34 +114,14 @@ export default function AgentConsole({ state, request, native, confirm }) {
           )}
         </section>
         <section>
-          <span className="eyebrow">PASTA AUTORIZADA</span>
+          <span className="eyebrow">COMPUTADOR</span>
           <strong className="workspace-path">
-            {state.agent.workspace || "Nenhuma pasta selecionada"}
+            Acesso aos caminhos do computador
           </strong>
-          <div className="agent-config-row">
-            <button
-              className="secondary-button"
-              disabled={working || !!active || !native}
-              onClick={() => call({ op: "workspace" })}
-            >
-              <FolderOpen size={15} /> Escolher pasta
-            </button>
-            {!!state.agent.workspace && (
-              <button
-                className="icon-button"
-                title="Revogar pasta"
-                aria-label="Revogar pasta"
-                disabled={working || !!active}
-                onClick={() => call({ op: "workspace", revoke: true })}
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
           <span className="small-label">
-            {state.settings.access.files
-              ? "Arquivos autorizados"
-              : "Arquivos desativados nos ajustes"}
+            {native
+              ? "Caminhos absolutos em qualquer unidade; permissoes do Windows permanecem."
+              : "Execucao de arquivos e PowerShell somente no EXE."}
           </span>
         </section>
       </div>
@@ -154,7 +129,7 @@ export default function AgentConsole({ state, request, native, confirm }) {
         className="agent-request"
         onSubmit={async (event) => {
           event.preventDefault();
-          const result = await call({ op: "plan", goal: goal.trim() }, true);
+          const result = await call({ op: "task", goal: goal.trim() }, true);
           if (result) setGoal("");
         }}
       >
@@ -172,13 +147,13 @@ export default function AgentConsole({ state, request, native, confirm }) {
           <span className="small-label">
             {active
               ? statuses[active.status]
-              : "Nenhuma acao executada antes da autorizacao"}
+              : "Sua tarefa autoriza a execucao"}
           </span>
           <button
             className="primary-button"
             disabled={working || !!active || !goal.trim()}
           >
-            <Workflow size={16} /> Preparar plano
+            <Workflow size={16} /> Executar tarefa
           </button>
         </div>
       </form>
@@ -287,14 +262,9 @@ export default function AgentConsole({ state, request, native, confirm }) {
                   <button
                     className="primary-button"
                     disabled={working || !!active}
-                    onClick={() =>
-                      confirm(
-                        "Autorizar todas as etapas deste plano? Confira os caminhos e argumentos. Acoes ja concluidas nao sao desfeitas ao cancelar.",
-                        () => call({ op: "run", id: run.id }, true),
-                      )
-                    }
+                    onClick={() => call({ op: "run", id: run.id }, true)}
                   >
-                    <Play size={15} /> Autorizar e executar
+                    <Play size={15} /> Executar plano
                   </button>
                 )}
                 <button

@@ -22,13 +22,14 @@ function fixture() {
   };
   return { engine: new JarvisEngine(storage), storage };
 }
-test("hologram defaults animate regardless of OS, never enable PC privileges implicitly", () => {
+test("hologram defaults animate regardless of OS with the requested task-authorized preset", () => {
   const s = initialState();
   assert.equal(s.settings.motion, true);
   assert.equal(s.settings.motionMode, "always");
   assert.equal(s.settings.listenOnLaunch, true);
   assert.equal(s.settings.listenInBackground, true);
-  assert.equal(s.settings.access.commands, false);
+  assert.equal(s.settings.access.commands, true);
+  assert.equal(s.settings.access.taskAuthorization, true);
 });
 test("wake name can be in the middle or end; ordinary speech is not addressed", () => {
   assert.equal(

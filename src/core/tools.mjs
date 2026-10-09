@@ -60,11 +60,11 @@ export const TOOLS = Object.freeze({
     "read",
   ),
   "workspace.list": spec(
-    "Listar pasta autorizada",
+    "Listar pasta do computador",
     "files",
     true,
     {
-      path: text(240),
+      path: text(2048),
     },
     "read",
   ),
@@ -73,12 +73,12 @@ export const TOOLS = Object.freeze({
     "files",
     true,
     {
-      path: text(240),
+      path: text(2048),
     },
     "read",
   ),
   "workspace.create": spec("Criar arquivo de texto", "files", true, {
-    path: text(240),
+    path: text(2048),
     content: text(16000),
   }),
   "workspace.trash": spec(
@@ -86,7 +86,7 @@ export const TOOLS = Object.freeze({
     "files",
     true,
     {
-      path: text(240),
+      path: text(2048),
     },
     "sensitive",
   ),
@@ -175,7 +175,7 @@ export const TOOLS = Object.freeze({
     "Executar comando PowerShell com aprovacao",
     "commands",
     true,
-    { script: text(8000), directory: text(240) },
+    { script: text(8000), directory: text(2048) },
     "sensitive",
   ),
   "news.headlines": spec(

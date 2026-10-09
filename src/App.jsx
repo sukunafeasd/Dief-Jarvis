@@ -321,9 +321,7 @@ function Connections({ state }) {
         ],
         [
           "Arquivos",
-          state.agent.workspace
-            ? "Pasta autorizada selecionada · EXE"
-            : "Nenhuma pasta autorizada",
+          "Caminhos do computador · EXE · sem pasta obrigatoria",
           false,
         ],
         ["Agenda e e-mail", "Nao conectados"],
@@ -550,6 +548,8 @@ export default function App() {
     const stop = () => {
       activation.current++;
       activating.current = false;
+      browserAssistant.stop();
+      window.jarvisDesktop?.assistant?.({ op: "stop" })?.catch(() => {});
       voice.stop();
       listener.stop();
       window.jarvisDesktop?.voice({ op: "stop" }).catch(() => {});
@@ -698,7 +698,9 @@ export default function App() {
     act({ type: "screen.view", view });
   };
   const confirm = (title, action) =>
-    setModal({ type: "confirm", title, action });
+    state.settings.access.taskAuthorization
+      ? action()
+      : setModal({ type: "confirm", title, action });
   const openForm = (type) =>
     setModal({
       type,
@@ -788,6 +790,8 @@ export default function App() {
   const stopListening = () => {
     activation.current++;
     activating.current = false;
+    browserAssistant.stop();
+    window.jarvisDesktop?.assistant?.({ op: "stop" })?.catch(() => {});
     listener.stop();
     voice.stop();
     window.jarvisDesktop?.voice({ op: "stop" }).catch(() => {});
@@ -835,11 +839,6 @@ export default function App() {
       ["working", "speaking", "received"].includes(phase)
     ) {
       stopListening();
-      if (window.jarvisDesktop?.assistant)
-        window.jarvisDesktop
-          .assistant({ op: "stop" })
-          .catch((error) => setNotice(error.message));
-      else browserAssistant.stop();
       setPhase("idle");
     } else startListening(true);
   };
@@ -894,6 +893,8 @@ export default function App() {
       let result;
       if (window.jarvisDesktop?.agent)
         result = await window.jarvisDesktop.agent(request);
+      else if (request.op === "task")
+        result = await browserAssistant.respond(request.goal);
       else if (request.op === "plan")
         result = await browserAgent.plan(request.goal);
       else if (request.op === "run")
@@ -950,8 +951,9 @@ export default function App() {
         previewVoice={(text, options) => {
           clearTimeout(responseTimer.current);
           voice.stop();
-          voice.speak(text, options);
+          return voice.speak(text, options);
         }}
+        voicePhase={phase}
         onSearch={async (query) => {
           try {
             if (!window.jarvisDesktop?.search)
@@ -965,10 +967,9 @@ export default function App() {
         }}
         onAutonomy={async (value) => {
           try {
-            const result = await window.jarvisDesktop.agent({
-              op: "autonomy",
-              value,
-            });
+            const result = window.jarvisDesktop
+              ? await window.jarvisDesktop.agent({ op: "autonomy", value })
+              : await engine.execute({ type: "agent.autonomy", value });
             updateState(result.state);
           } catch (error) {
             setNotice(error.message);

@@ -122,7 +122,7 @@ test("supervised refusal stops effects and retains failure history", async () =>
   });
   await f.engine.execute({
     type: "permissions.update",
-    access: { web: true },
+    access: { mode: "supervised", taskAuthorization: false, web: true },
     confirmed: true,
   });
   const plan = await f.agent.plan("pesquise algo");
@@ -247,7 +247,7 @@ test("permission is checked again after a native approval dialog", async () => {
   });
   await f.engine.execute({
     type: "permissions.update",
-    access: { web: true },
+    access: { mode: "supervised", taskAuthorization: false, web: true },
     confirmed: true,
   });
   const plan = await f.agent.plan("pesquise algo");
@@ -268,6 +268,10 @@ test("older workspaces add empty agent history without rewriting user data or au
 });
 test("Ollama adapter uses fixed loopback endpoint, structured schema and validates output", async () => {
   const f = fixture();
+  await f.engine.execute({
+    type: "permissions.update",
+    access: { files: false },
+  });
   await f.engine.execute({
     type: "agent.configure",
     provider: "ollama",

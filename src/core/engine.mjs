@@ -215,6 +215,8 @@ export class JarvisEngine {
       throw Error(
         "O registro local de auditoria nao passou na verificacao. Os dados foram preservados.",
       );
+    const migrateExecution =
+      state.settings.executionPresetVersion === undefined;
     return {
       ...state,
       runs: state.runs || [],
@@ -224,12 +226,17 @@ export class JarvisEngine {
         provider: "local",
         model: "",
         workspace: "",
-        autonomy: false,
+        autonomy: true,
         ...state.agent,
+        ...(migrateExecution ? { autonomy: true } : {}),
       },
       settings: {
         ...VOICE_DEFAULTS,
         ...state.settings,
+        ...(state.settings.clonePresetVersion === undefined &&
+        [undefined, "neural"].includes(state.settings.voiceEngine)
+          ? { voiceEngine: "clone", clonePresetVersion: 1 }
+          : {}),
         ...(state.settings.displayPresetVersion === undefined
           ? { motionMode: "always" }
           : {}),
@@ -237,7 +244,10 @@ export class JarvisEngine {
         state.settings.voiceProfile === "pm_alex"
           ? { voiceProfile: "dief_pt" }
           : {}),
-        access: { ...ACCESS_DEFAULTS, ...state.settings.access },
+        executionPresetVersion: 1,
+        access: migrateExecution
+          ? { ...ACCESS_DEFAULTS }
+          : { ...ACCESS_DEFAULTS, ...state.settings.access },
       },
     };
   }
@@ -277,12 +287,14 @@ export class JarvisEngine {
       case "agent.autonomy":
         if (
           typeof action.value !== "boolean" ||
-          (action.value && action.confirmed !== true)
+          (action.value &&
+            !state.settings.access.taskAuthorization &&
+            action.confirmed !== true)
         )
           throw Error("Autorize a autonomia explicitamente.");
         state.agent.autonomy = action.value;
         detail = action.value
-          ? "Autonomia de leitura e operacoes rotineiras autorizada; alto risco mantem confirmacao"
+          ? "Tarefas dadas ao Jarvis autorizam a execucao; interrupcao continua disponivel"
           : "Autonomia revogada";
         break;
       case "screen.card":
@@ -734,7 +746,7 @@ export class JarvisEngine {
           ["web", "files", "desktop", "commands", "admin"].some(
             (key) => next[key] && !state.settings.access[key],
           );
-        if (expands && action.confirmed !== true)
+        if (expands && !next.taskAuthorization && action.confirmed !== true)
           throw Error("Confirme explicitamente a ampliacao de acesso.");
         state.settings.access = next;
         detail = `Politica ${next.mode}; web=${next.web}; arquivos=${next.files}; desktop=${next.desktop}; admin=${next.admin}`;

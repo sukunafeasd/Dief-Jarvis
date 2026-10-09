@@ -21,15 +21,17 @@ export const VIEWS = [
 export const THEMES = ["amber", "cyan"];
 export const ZERO_HASH = "0".repeat(64);
 export const ACCESS_DEFAULTS = Object.freeze({
-  mode: "restricted",
-  web: false,
-  files: false,
-  desktop: false,
-  commands: false,
-  admin: false,
+  mode: "full",
+  web: true,
+  files: true,
+  desktop: true,
+  commands: true,
+  admin: true,
+  taskAuthorization: true,
 });
 export const VOICE_DEFAULTS = Object.freeze({
-  voiceEngine: "neural",
+  voiceEngine: "clone",
+  clonePresetVersion: 1,
   voiceProfile: "dief_pt",
   voicePresetVersion: 1,
   presentation: "voice",
@@ -67,12 +69,13 @@ export function initialState() {
       quality: "balanced",
       ...VOICE_DEFAULTS,
       access: { ...ACCESS_DEFAULTS },
+      executionPresetVersion: 1,
     },
     tasks: [],
     runs: [],
     cards: [],
     pins: [],
-    agent: { provider: "local", model: "", workspace: "", autonomy: false },
+    agent: { provider: "local", model: "", workspace: "", autonomy: true },
     memories: [],
     messages: [],
     audit: [],
@@ -202,7 +205,7 @@ export function validateState(state) {
     throw Error("Cidade invalida.");
   if (
     !["voice", "workspace"].includes(options.presentation) ||
-    !["system", "neural", "azure"].includes(options.voiceEngine) ||
+    !["system", "neural", "azure", "clone"].includes(options.voiceEngine) ||
     !["pt-BR-AntonioNeural", "pt-BR-CaioNeural"].includes(options.azureVoice) ||
     !["dief_pt", "pm_alex", "pm_santa", "bm_george"].includes(
       options.voiceProfile,
@@ -230,7 +233,7 @@ export function validateState(state) {
   const access = { ...ACCESS_DEFAULTS, ...state.settings.access };
   if (
     !["restricted", "supervised", "full"].includes(access.mode) ||
-    ["web", "files", "desktop", "commands", "admin"].some(
+    ["web", "files", "desktop", "commands", "admin", "taskAuthorization"].some(
       (key) => typeof access[key] !== "boolean",
     )
   )

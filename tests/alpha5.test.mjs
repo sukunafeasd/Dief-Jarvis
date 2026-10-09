@@ -45,6 +45,7 @@ async function full(engine) {
     type: "permissions.update",
     access: {
       mode: "full",
+      taskAuthorization: false,
       files: true,
       web: true,
       desktop: true,

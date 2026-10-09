@@ -1,7 +1,8 @@
 # Dief Jarvis
 
-Assistente pessoal independente do Painel Dief. Versao **1.0.0-alpha.7**.
-Esta e uma alpha, nao a versao final 1.0 nem controle irrestrito do computador.
+Assistente pessoal independente do Painel Dief. Versao **1.0.0-alpha.8**.
+Esta e uma alpha com execucao autorizada pela tarefa dada ao assistente,
+nao a versao final 1.0 nem garantia de controle universal do Windows.
 
 ## Disponivel
 
@@ -19,14 +20,17 @@ Esta e uma alpha, nao a versao final 1.0 nem controle irrestrito do computador.
 - Animacoes ativas por padrao, independentemente da preferencia do sistema.
   Economia, pausa e respeito ao movimento reduzido sao escolhas nos ajustes.
 - Escuta local consentida, AudioWorklet + Vosk, nome Jarvis e comandos PT/EN.
-- Sintese neural local Kokoro: perfil Dief/PT padrao (Alex 80% + Santa 20%),
-  Alex/Santa para comparar e George em ingles britanico. Fala por trechos com
-  preparo do proximo enquanto o atual toca, normalizacao de unidades/Markdown.
-  Aproximacao de estilo, nao voz oficial/clone do ator do filme.
+- Voz padrao XTTS-v2 em portugues, condicionada por amostra local. Novas falas
+  sao sintetizadas usando essa referencia; nao sao reproducao do arquivo nem
+  a antiga mistura Alex/Santa. Sem garantia de identidade/perfeicao sonora.
+  Modelo e referencia ficam locais, fora do Git e fora de qualquer distribuicao.
+- Kokoro permanece alternativa leve: Dief/PT (Alex 80% + Santa 20%), Alex/Santa
+  para comparar e George em ingles. Fala por trechos e preparo do proximo
+  enquanto o atual toca, normalizacao de unidades/Markdown.
 - Perfil vocal original com nove modos de cadencia, personalidade concisa e
   acabamento Web Audio: filtro, equalizacao, compressor e limitador. Direcao
   artistica nao altera idade/timbre do modelo nem equivale a treinamento vocal.
-  Cache somente em RAM para oito frases genericas, limitado a 16 variantes;
+  No motor Kokoro, cache em RAM para oito frases genericas e ate 16 variantes;
   falas pessoais nunca entram nele. Limpo ao parar o motor de sintese.
 - Azure Speech opcional preparado: Antonio/Caio PT-BR, chave cifrada com
   safeStorage em tabela separada no EXE, sem chave em estado/exportacao/auditoria.
@@ -37,13 +41,16 @@ Esta e uma alpha, nao a versao final 1.0 nem controle irrestrito do computador.
   consciencia, captura geral do PC ou garantia de compreensao de qualquer frase.
 - Preparacao obrigatoria no EXE para componentes/modelo/executor ausentes.
   Downloads consentidos, verificados por tamanho/SHA256 e com cancelamento.
-- Assistente Ollama com ferramentas tipadas, observacao/replanejamento, limites,
-  permissao revogavel, confirmacoes sensiveis e historico de resultados reais.
+- Assistente Ollama com ferramentas tipadas, observacao/replanejamento e
+  historico de resultados reais. Web/arquivos/PC/PowerShell habilitados por
+  padrao; o pedido do operador autoriza a execucao sem confirmacao duplicada.
+  A migracao aplica esse preset uma vez, preservando dados e escolhas posteriores.
 - Executor Windows UI Automation e navegador agente isolado com leitura real
   de pesquisa e nova observacao apos alteracoes.
-- PowerShell separado: permissao propria, script integral aprovado no dialogo
-  nativo, processo sem sandbox, sem alterar ExecutionPolicy automaticamente.
-- Area de arquivos escolhida; disco inteiro exige modo completo + confirmacao.
+- PowerShell com os privilegios do EXE, sem dialogo adicional por script no
+  preset padrao, sem sandbox de pasta ou mudanca automatica de ExecutionPolicy.
+- Caminhos absolutos em qualquer unidade do computador, sem pasta obrigatoria.
+  Caminhos relativos usam a pasta pessoal ou diretorio inicial opcional.
   Criar texto/codigo sem sobrescrever e excluir arquivos pela Lixeira.
 - Tarefas, memorias, medidas informadas, status local, clima Open-Meteo e noticias
   de tecnologia Hacker News na tela, com origem. Previsao de sete dias,
@@ -57,7 +64,7 @@ A previa browser executa comandos locais e voz preparada, nao controla Windows
 nem consulta um provedor LLM. Ferramentas nativas exigem o EXE preparado.
 Nao pareamos Painel Dief/Mongo, celular, relogio, calendario ou e-mail.
 Nao ha bypass de UAC/CAPTCHA nem controle visual de jogos/apps sem UIA.
-Comandos aprovados podem acessar tudo que o processo tiver direito, inclusive
+Comandos solicitados podem acessar tudo que o processo tiver direito, inclusive
 fora da pasta de trabalho: o executor PowerShell NAO e uma sandbox. Nao ha
 garantia de seguranca ou controle universal. O manifesto de empacotamento pede
 administrador ao iniciar o futuro EXE; o UAC continua exigindo autorizacao do
@@ -76,8 +83,10 @@ frase. Apos a resposta ha uma janela de 8s para continuar a conversa.
 O caminho curto de voz da vista de texto usa Web Speech e pode usar servico do
 navegador; o holograma usa Vosk local. Audio capturado nao e salvo.
 
-Dados web/documentos sao nao confiaveis. Confirmacao e limites reduzem riscos,
-nao garantem protecao absoluta. Auditoria nao e prova externa antiviolacao.
+Dados web/documentos sao nao confiaveis e nao autorizam novos objetivos. O preset
+padrao nao pede confirmacao extra, aumentando o impacto de erros do modelo ou
+voz de terceiros. Interromper nao desfaz efeitos. Auditoria nao e prova externa
+antiviolacao. Escape e desligar o nucleo tambem interrompem a tarefa ativa.
 Dados browser/exportacoes JSON sao legiveis; nao guarde segredos na previa.
 
 ## Desenvolvimento
@@ -108,7 +117,7 @@ npm run test:voice-style
 npm run test:presentation
 ```
 
-Os dois ultimos usam modelos reais e audio sintetico, nao microfone fisico.
+Esses testes nao usam microfone fisico; alguns usam fixtures de audio/dados.
 CHROME_PATH seleciona o executavel Chromium para os testes Playwright.
 
 Desktop:
@@ -121,16 +130,19 @@ npm run desktop
 ```
 
 O aplicativo bloqueia uso enquanto faltarem componentes, Ollama, modelo ou
-helper. Instalar Ollama/modelo e autorizar microfone/PC sao operacoes separadas.
+helper. Permissoes do Windows/microfone continuam sendo do sistema operacional.
 Qwen3:1.7b e sugestao inicial; custos de RAM/disco dependem do modelo escolhido.
-O padrao Kokoro continua local e gratuito. Azure e opcional, exige uma chave
+O XTTS padrao usa runtime Python separado e aproximadamente 1,9 GB de modelo.
+Preparacao e licenca estao no relatorio alpha.8. Nesta maquina, geracao fria
+levou 92-94 s; uma resposta curta com modelo carregado levou 16 s. Nao e fala
+instantanea. Kokoro e alternativa mais leve. Azure e opcional, exige uma chave
 fornecida pelo usuario e envia o texto da resposta a Microsoft; pode consumir
 cota ou gerar custos. Para a previa, configure JARVIS_AZURE_REGION e
 JARVIS_AZURE_KEY somente no ambiente do servidor e reinicie-o manualmente.
 Nunca use variaveis VITE_* para segredos. No EXE, configure em Ajustes > Voz.
 Nao contratamos, instalamos nem ativamos um servico pago.
 
-**Nao publicar binarios alpha.7 antes de resolver redistribuicao GPL do EPhone e
+**Nao publicar binarios alpha.8 antes de resolver redistribuicao GPL do EPhone e
 validacao Windows real.** Scripts de pacote usam publish never; arquivos de
 build/teste ficam fora do Git. Instalador/downloads do Painel Dief nao mudaram.
 
@@ -151,15 +163,15 @@ build/teste ficam fora do Git. Instalador/downloads do Painel Dief nao mudaram.
 - Jarvis, mostre noticias de tecnologia. (EXE + web autorizado)
 - Jarvis, liste janelas. (EXE + controles Windows autorizados)
 
-Execucoes permite revisar/autorizar planos. /agente na conversa prepara um plano,
-sem executar. No modo completo + autonomia, observacao e comandos locais podem
-seguir automaticamente, inclusive cliques/preenchimentos e criacao de textos,
-apos autorizacao nativa por sessao. Lixeira, comandos PowerShell e controles
-identificados como alto risco mantem aprovacao. Classificacao por rotulos e
-melhor esforco, nao prova de seguranca. Interrupcoes nao repetem efeitos.
-Um plano aprovado pode continuar o objetivo original usando os resultados
-reais, sem executar novamente suas etapas. Limites operacionais: 24 ciclos,
-64 etapas e 15 minutos por atendimento; planos atomicos continuam ate 8 etapas.
+Execucoes recebe tarefas e executa pelo mesmo assistente da conversa. /agente
+continua sendo a escolha explicita de apenas preparar um plano. Planos antigos
+nao sao executados automaticamente ao abrir. O preset padrao nao exige
+autorizacao por sessao ou por etapa; o pedido original e a autorizacao.
+Desligar execucao automatica deixa planos em espera. Interrupcoes nao repetem
+efeitos. Foram removidos os tetos de 24 ciclos, 64 etapas e 15 minutos por
+atendimento. Planos atomicos continuam ate 8 etapas, com continuacao. Formatos,
+observacoes e buffers permanecem validados/limitados para nao esgotar memoria;
+saidas grandes sao marcadas parciais, sem matar PowerShell por volume de texto.
 
 ## Documentacao
 
@@ -169,6 +181,7 @@ reais, sem executar novamente suas etapas. Limites operacionais: 24 ciclos,
 - [Relatorio de testes alpha.5](docs/TEST_REPORT_ALPHA5.md)
 - [Relatorio de testes e limites alpha.6](docs/TEST_REPORT_ALPHA6.md)
 - [Apresentacao contextual, voz e testes alpha.7](docs/TEST_REPORT_ALPHA7.md)
+- [Execucao por tarefa, referencia XTTS e testes alpha.8](docs/TEST_REPORT_ALPHA8.md)
 
 src/core guarda estado e contratos; src/components guarda interface;
 desktop guarda brokers, drivers e SQLite; tests guarda verificacoes.

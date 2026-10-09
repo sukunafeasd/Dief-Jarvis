@@ -2,10 +2,12 @@ import fs from "node:fs/promises";
 import { ComponentInstaller, runtimeRoot } from "./components.mjs";
 import { VoiceService } from "./voice-service.mjs";
 import { AzureVoice } from "./azure-voice.mjs";
+import { ClonedVoice } from "./clone-voice.mjs";
 export function previewVoicePlugin() {
   const root = runtimeRoot(),
     installer = new ComponentInstaller(root),
     voice = new VoiceService(root),
+    clone = new ClonedVoice(),
     azure = new AzureVoice(async () => ({
       region: process.env.JARVIS_AZURE_REGION,
       key: process.env.JARVIS_AZURE_KEY,
@@ -73,7 +75,11 @@ export function previewVoicePlugin() {
             }
             const request = JSON.parse(body);
             const wav = await (
-              request.engine === "azure" ? azure : voice
+              request.engine === "azure"
+                ? azure
+                : request.engine === "clone"
+                  ? clone
+                  : voice
             ).speak(request.text, request.profile, request.speed);
             res.setHeader("Content-Type", "audio/wav");
             res.setHeader("Cache-Control", "no-store");
@@ -84,6 +90,7 @@ export function previewVoicePlugin() {
             req.method === "POST"
           ) {
             await voice.stop();
+            await clone.stop();
             azure.stop();
             res.writeHead(204);
             return res.end();
@@ -97,6 +104,7 @@ export function previewVoicePlugin() {
       });
       server.httpServer?.on("close", () => {
         voice.stop();
+        clone.stop();
         azure.stop();
       });
     },

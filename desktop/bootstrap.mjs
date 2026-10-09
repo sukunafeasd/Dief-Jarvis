@@ -4,6 +4,7 @@ import path from "node:path";
 import { ollamaModels } from "../src/core/ollama.mjs";
 import { runtimeRoot, ComponentInstaller, hashFile } from "./components.mjs";
 import { safeDirectory, requireDisk } from "./data-directory.mjs";
+import { ClonedVoice } from "./clone-voice.mjs";
 export const LOCAL_MODEL = "qwen3:1.7b";
 export const OLLAMA_INSTALLER = Object.freeze({
   url: "https://github.com/ollama/ollama/releases/download/v0.40.1/OllamaSetup.exe",
@@ -12,6 +13,19 @@ export const OLLAMA_INSTALLER = Object.freeze({
 });
 export async function bootstrapStatus(installer, state, helper) {
   const components = await installer.status();
+  const clone = {
+    required: state.settings.voiceEngine === "clone",
+    ready: false,
+    error: "",
+  };
+  if (clone.required) {
+    try {
+      await new ClonedVoice().configuration();
+      clone.ready = true;
+    } catch (error) {
+      clone.error = error.message;
+    }
+  }
   let models = [],
     brainError = "";
   try {
@@ -43,10 +57,15 @@ export async function bootstrapStatus(installer, state, helper) {
         : "";
   return {
     components,
+    clone,
     brain: { running: !brainError, models, selected, error: brainError },
     desktop: { ready: helperReady },
     memoryGB: Math.round(os.totalmem() / 1073741824),
-    ready: components.ready && !!selected && helperReady,
+    ready:
+      components.ready &&
+      !!selected &&
+      helperReady &&
+      (!clone.required || clone.ready),
     installerBytes: OLLAMA_INSTALLER.size,
     model: LOCAL_MODEL,
   };

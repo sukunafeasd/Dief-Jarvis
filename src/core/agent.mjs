@@ -1,6 +1,6 @@
 import { localPlan, TOOLS, validatePlan } from "./tools.mjs";
 import { textValue } from "./model.mjs";
-import { approvalRequired } from "./execution-policy.mjs";
+import { approvalRequired, taskAuthorized } from "./execution-policy.mjs";
 
 export class AgentController {
   constructor(engine, options = {}) {
@@ -73,11 +73,16 @@ export class AgentController {
       throw Error(
         `Autorize ${tool.permission === "files" ? "arquivos" : tool.permission === "desktop" ? "controle do PC" : tool.permission === "commands" ? "comandos locais" : "pesquisa web"} nos ajustes.`,
       );
-    if (tool.permission === "files" && !state.agent.workspace)
+    if (
+      tool.permission === "files" &&
+      state.settings.access.mode !== "full" &&
+      !state.agent.workspace
+    )
       throw Error("Selecione uma pasta autorizada antes de usar arquivos.");
     if (
       tool.permission === "commands" &&
-      (!state.agent.workspace || !state.settings.access.files)
+      ((state.settings.access.mode !== "full" && !state.agent.workspace) ||
+        !state.settings.access.files)
     )
       throw Error(
         "Comandos precisam de arquivos autorizados e uma pasta de trabalho.",
@@ -88,7 +93,6 @@ export class AgentController {
     const operation = { id, abort: new AbortController() };
     this.active = operation;
     let started = false;
-    const deadline = Date.now() + 900000;
     try {
       const state = await this.engine.read();
       const run = state.runs.find((item) => item.id === id);
@@ -100,8 +104,6 @@ export class AgentController {
       started = true;
       for (let index = 0; index < run.steps.length; index++) {
         operation.abort.signal.throwIfAborted();
-        if (Date.now() > deadline)
-          throw Error("Tempo total de execucao excedido.");
         const step = run.steps[index];
         let current = await this.engine.read();
         this.check(step, current);
@@ -119,8 +121,9 @@ export class AgentController {
             await this.commit({ type: "agent.local", id, index });
           } else {
             if (
-              approvalRequired(step, current) ||
-              (await this.options.requiresApproval?.(step, current)) === true
+              !taskAuthorized(current) &&
+              (approvalRequired(step, current) ||
+                (await this.options.requiresApproval?.(step, current)) === true)
             ) {
               if (!(await this.options.approve?.(step)))
                 throw Error("Operacao nao autorizada pelo operador.");

@@ -254,6 +254,7 @@ try {
     ),
     /sensivel/,
   );
+  assert.deepEqual(errors, [], "including native startup and Escape fixture");
   console.log(
     "PASS: voice-only hologram, actual saved task/metric cards, four viewports, canvas motion/pixels, fullscreen and mandatory startup UI fixture.",
   );

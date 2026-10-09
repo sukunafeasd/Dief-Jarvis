@@ -113,7 +113,7 @@ export class VoiceChannel {
   speak(text, options = {}) {
     options = { ...options, voiceRate: speechRate(text, options) };
     if (
-      ["neural", "azure"].includes(options.voiceEngine) &&
+      ["neural", "azure", "clone"].includes(options.voiceEngine) &&
       !window.jarvisDesktop?.voice &&
       !window.jarvisPreviewVoice
     ) {
@@ -124,7 +124,7 @@ export class VoiceChannel {
       return;
     }
     if (
-      ["neural", "azure"].includes(options.voiceEngine) &&
+      ["neural", "azure", "clone"].includes(options.voiceEngine) &&
       (window.jarvisDesktop?.voice || window.jarvisPreviewVoice)
     ) {
       return this.speakNeural(text, options);
