@@ -1,10 +1,21 @@
 import { Worker } from "node:worker_threads";
+const COMMON_PHRASES = new Set([
+  "Entendido.",
+  "Concluido.",
+  "Concluído.",
+  "Pronto.",
+  "Pode falar.",
+  "Estou ouvindo.",
+  "Um momento.",
+  "Vou verificar.",
+]);
 export class VoiceService {
   constructor(root, options = {}) {
     this.root = root;
     this.worker = null;
     this.active = false;
     this.generation = 0;
+    this.cache = new Map();
     this.createWorker =
       options.workerFactory || ((url, settings) => new Worker(url, settings));
   }
@@ -14,6 +25,10 @@ export class VoiceService {
     if (generation !== this.generation)
       throw Error("Fala cancelada antes de iniciar.");
     if (this.active) throw Error("Uma fala ja esta sendo preparada.");
+    const key = COMMON_PHRASES.has(text)
+      ? JSON.stringify([text, profile, speed])
+      : null;
+    if (key && this.cache.has(key)) return Buffer.from(this.cache.get(key));
     this.active = true;
     clearTimeout(this.idle);
     try {
@@ -29,7 +44,7 @@ export class VoiceService {
       }
       const worker = this.worker,
         id = crypto.randomUUID();
-      return await new Promise((resolve, reject) => {
+      const wav = await new Promise((resolve, reject) => {
         const clear = () => {
           clearTimeout(timeout);
           worker.off("message", message);
@@ -59,6 +74,12 @@ export class VoiceService {
         worker.once("exit", exited);
         worker.postMessage({ id, text, profile, speed });
       });
+      if (key && wav.byteLength <= 256000) {
+        this.cache.set(key, Buffer.from(wav));
+        while (this.cache.size > 16)
+          this.cache.delete(this.cache.keys().next().value);
+      }
+      return wav;
     } finally {
       this.active = false;
       if (this.worker) {
@@ -69,6 +90,7 @@ export class VoiceService {
   }
   stop() {
     this.generation++;
+    this.cache.clear();
     clearTimeout(this.idle);
     const worker = this.worker;
     this.worker = null;

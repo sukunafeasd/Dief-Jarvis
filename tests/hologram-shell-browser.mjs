@@ -24,7 +24,7 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`);
-  await page.locator("canvas").waitFor();
+  await page.locator('[data-testid="hologram"] canvas').waitFor();
   await fs.mkdir("artifacts", { recursive: true });
   const navigate = async (name) => {
     await page
@@ -71,7 +71,7 @@ try {
     const png = PNG.sync.read(
       Buffer.from(
         await page
-          .locator("canvas")
+          .locator('[data-testid="hologram"] canvas')
           .evaluate((canvas) => canvas.toDataURL().split(",")[1]),
         "base64",
       ),
@@ -87,15 +87,19 @@ try {
   }
   await page.setViewportSize({ width: 1440, height: 900 });
   const first = await page
-    .locator("canvas")
+    .locator('[data-testid="hologram"] canvas')
     .evaluate((canvas) => canvas.toDataURL());
   await page.waitForTimeout(300);
   assert.notEqual(
-    await page.locator("canvas").evaluate((canvas) => canvas.toDataURL()),
+    await page
+      .locator('[data-testid="hologram"] canvas')
+      .evaluate((canvas) => canvas.toDataURL()),
     first,
     "default continues animating when OS requests reduction",
   );
-  const bounds = await page.locator("canvas").boundingBox();
+  const bounds = await page
+    .locator('[data-testid="hologram"] canvas')
+    .boundingBox();
   await page.mouse.move(
     bounds.x + bounds.width / 2,
     bounds.y + bounds.height / 2,
@@ -181,11 +185,13 @@ try {
   await navigate("Holograma");
   await page.waitForTimeout(120);
   const still = await page
-    .locator("canvas")
+    .locator('[data-testid="hologram"] canvas')
     .evaluate((canvas) => canvas.toDataURL());
   await page.waitForTimeout(200);
   assert.equal(
-    await page.locator("canvas").evaluate((canvas) => canvas.toDataURL()),
+    await page
+      .locator('[data-testid="hologram"] canvas')
+      .evaluate((canvas) => canvas.toDataURL()),
     still,
     "optional OS reduction still works",
   );
@@ -237,7 +243,7 @@ try {
   }
   await navigate("Holograma");
   await page.reload();
-  await page.locator("canvas").waitFor();
+  await page.locator('[data-testid="hologram"] canvas').waitFor();
   assert.equal(await page.locator(".theme-cyan").count(), 1);
   assert.equal(await page.locator(".command-form").count(), 0);
   assert.deepEqual(errors, []);

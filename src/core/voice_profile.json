@@ -1,0 +1,38 @@
+{
+  "id": "dief_cinematic_ptbr",
+  "identity": "original",
+  "language": "pt-BR",
+  "direction": {
+    "gender": "male",
+    "apparent_age": 42,
+    "pitch": "medium_low",
+    "warmth": 0.65,
+    "clarity": 0.95,
+    "formality": 0.72,
+    "humor": 0.08
+  },
+  "pace": 0.94,
+  "audio": {
+    "highpassHz": 80,
+    "presenceHz": 2200,
+    "presenceDb": 1.2,
+    "shelfHz": 5600,
+    "shelfDb": -1,
+    "thresholdDb": -22,
+    "ratio": 2,
+    "attackSeconds": 0.022,
+    "releaseSeconds": 0.12,
+    "ceiling": 0.92
+  },
+  "modes": {
+    "normal": 1,
+    "informative": 1,
+    "confirmation": 1.02,
+    "analysis": 0.95,
+    "warning": 0.98,
+    "urgent": 1.1,
+    "humor": 1,
+    "greeting": 0.99,
+    "low_priority": 0.97
+  }
+}

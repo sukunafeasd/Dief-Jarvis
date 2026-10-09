@@ -2,6 +2,7 @@ import {
   conversationFacts,
   rememberConversation,
 } from "./conversation-memory.mjs";
+import { TOPICS, topicFromText, learnPinnedTopic } from "./presentation.mjs";
 import {
   PANELS,
   VIEWS,
@@ -35,6 +36,27 @@ function openPanel(state, key) {
 }
 function interpret(state, content, id, at) {
   const text = normalize(content);
+  if (/^(?:jarvis[, ]*)?(?:fixe|fixar|desfixe|retire da central)/.test(text)) {
+    const topic = topicFromText(text);
+    if (!topic)
+      return {
+        status: "declined",
+        message:
+          "Informe um topico disponivel: tarefas, clima, noticias, atividade, sistema ou memoria.",
+        capability: "screen.pin",
+      };
+    const enabled = !/desfixe|retire/.test(text);
+    state.pins = enabled
+      ? [...new Set([...(state.pins || []), topic])].slice(-6)
+      : (state.pins || []).filter((item) => item !== topic);
+    return {
+      status: "completed",
+      message: enabled
+        ? "Topico fixado na central. Mostrarei os ultimos dados disponiveis, com horario e origem."
+        : "Topico retirado dos fixados.",
+      capability: "screen.pin",
+    };
+  }
   const facts = conversationFacts(content);
   if (facts.length && state.settings.autoMemory !== false)
     return {
@@ -197,6 +219,7 @@ export class JarvisEngine {
       ...state,
       runs: state.runs || [],
       cards: state.cards || [],
+      pins: state.pins || [],
       agent: {
         provider: "local",
         model: "",
@@ -270,9 +293,21 @@ export class JarvisEngine {
           unit: typeof action.unit === "string" ? action.unit : "",
           source: textValue(action.source, 2000),
           at,
+          ...(action.kind !== undefined ? { kind: action.kind } : {}),
+          ...(action.weatherCode !== undefined
+            ? { weatherCode: action.weatherCode }
+            : {}),
         });
         state.cards = state.cards.slice(0, 6);
         detail = "Dado com origem mostrado no holograma";
+        break;
+      case "screen.pin":
+        if (!TOPICS.includes(action.topic) || typeof action.value !== "boolean")
+          throw Error("Topico fixado invalido.");
+        state.pins = action.value
+          ? [...new Set([...state.pins, action.topic])].slice(-6)
+          : state.pins.filter((topic) => topic !== action.topic);
+        detail = action.value ? "Topico fixado na central" : "Topico desfixado";
         break;
       case "screen.card.remove":
         state.cards = state.cards.filter((card) => card.id !== action.id);
@@ -297,6 +332,7 @@ export class JarvisEngine {
             this.id(),
           );
           if (learned) detail += `; ${learned} fato(s) guardado(s) no nucleo`;
+          learnPinnedTopic(state, content);
         }
         break;
       }
@@ -469,6 +505,15 @@ export class JarvisEngine {
           });
           step.output = "Memoria salva.";
           openPanel(state, "memory");
+        } else if (step.tool === "screen.pin") {
+          state.pins =
+            step.args.mode === "pin"
+              ? [...new Set([...state.pins, step.args.topic])].slice(-6)
+              : state.pins.filter((topic) => topic !== step.args.topic);
+          step.output =
+            step.args.mode === "pin"
+              ? "Topico fixado. Mostra os ultimos dados disponiveis com horario e origem."
+              : "Topico desfixado.";
         } else if (step.tool === "screen.open") {
           openPanel(state, step.args.panel);
           if (
@@ -477,6 +522,13 @@ export class JarvisEngine {
           )
             state.view = step.args.panel;
           step.output = `${PANELS[step.args.panel]} aberto.`;
+          if (step.args.panel === "tasks")
+            step.output = JSON.stringify({
+              total: state.tasks.length,
+              tasks: state.tasks
+                .slice(0, 6)
+                .map(({ id, text, done }) => ({ id, text, done })),
+            });
         } else if (
           step.tool === "screen.metric" ||
           step.tool === "system.status"
@@ -492,6 +544,7 @@ export class JarvisEngine {
             source: metric
               ? "Informado na conversa; nao recebido de celular ou relogio"
               : "Workspace local do aplicativo",
+            kind: metric ? "activity" : "status",
             at,
           });
           state.cards = state.cards.slice(0, 6);
@@ -546,6 +599,7 @@ export class JarvisEngine {
         state.messages = state.messages.slice(-200);
         detail = "Comando recebido na conversa";
         if (learned) detail += `; ${learned} fato(s) guardado(s) no nucleo`;
+        learnPinnedTopic(state, content);
         break;
       }
       case "screen.view":

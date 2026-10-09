@@ -45,6 +45,7 @@ import Startup from "./components/Startup.jsx";
 import { WakeListener } from "./wake-listener.mjs";
 import { AssistantSession } from "./core/assistant.mjs";
 import { AgentController } from "./core/agent.mjs";
+import { presentationFor } from "./core/presentation.mjs";
 import "./core-effects.css";
 
 const NAV = [
@@ -385,6 +386,8 @@ export default function App() {
   const [recordTab, setRecordTab] = useState("memory");
   const [listenState, setListenState] = useState("off");
   const [audioLevel, setAudioLevel] = useState(0);
+  const [speechSegment, setSpeechSegment] = useState(null);
+  const [selectedTopic, setSelectedTopic] = useState(null);
   const [runtimeStatus, setRuntimeStatus] = useState(null);
   const [runtimeProgress, setRuntimeProgress] = useState(null);
   const [runtimeError, setRuntimeError] = useState("");
@@ -426,6 +429,7 @@ export default function App() {
         onPhase: setPhase,
         onError: setNotice,
         onLevel: setAudioLevel,
+        onSegment: setSpeechSegment,
         onSpokenEnd: () => listenerRef.current?.afterSpeech(),
       }),
     [],
@@ -1088,6 +1092,7 @@ export default function App() {
           <div className="hologram-stage" hidden={state.view !== "central"}>
             <React.Suspense fallback={null}>
               <Hologram
+                presenting={!!presentationFor(state, selectedTopic)}
                 theme={state.settings.theme}
                 motion={state.settings.motion}
                 quality={state.settings.quality}
@@ -1116,6 +1121,11 @@ export default function App() {
           {state.view === "central" && (
             <HoloConsole
               state={state}
+              selected={selectedTopic}
+              setSelected={setSelectedTopic}
+              segment={speechSegment}
+              phase={phase}
+              level={audioLevel}
               act={act}
               openRuns={() => nav("agent")}
               removeCard={(id) => act({ type: "screen.card.remove", id })}

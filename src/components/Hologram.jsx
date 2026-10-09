@@ -323,6 +323,7 @@ export default function Hologram({
   audioLevel = 0,
   motionMode = "always",
   awake = false,
+  presenting = false,
   onActivate,
   onError,
 }) {
@@ -600,7 +601,7 @@ export default function Hologram({
   return (
     <div
       ref={host}
-      className={`hologram ${awake ? "awake" : "asleep"}`}
+      className={`hologram ${awake ? "awake" : "asleep"} ${presenting ? "presenting-core" : ""}`}
       data-testid="hologram"
       role="button"
       tabIndex={0}

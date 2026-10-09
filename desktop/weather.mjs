@@ -1,4 +1,15 @@
 import { publicJson as json } from "./public-json.mjs";
+export function weatherCondition(code) {
+  if (code === 0) return "Ceu limpo";
+  if (code === 1 || code === 2) return "Parcialmente nublado";
+  if (code === 3) return "Nublado";
+  if (code === 45 || code === 48) return "Nevoeiro";
+  if ([51, 53, 55, 56, 57].includes(code)) return "Garoa";
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return "Chuva";
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return "Neve";
+  if ([95, 96, 99].includes(code)) return "Trovoada";
+  return "Condicao do tempo nao informada";
+}
 async function locate(city, signal, fetcher) {
   if (typeof city !== "string" || !city.trim() || city.length > 100)
     throw Error("Informe uma cidade.");
@@ -35,6 +46,12 @@ export async function currentWeather(city, signal, fetcher = fetch) {
     source: url,
     measuredAt: weather.current.time,
     temperature: weather.current.temperature_2m,
+    condition: weatherCondition(weather.current.weather_code),
+    ...(Number.isInteger(weather.current.weather_code) &&
+    weather.current.weather_code >= 0 &&
+    weather.current.weather_code <= 99
+      ? { weatherCode: weather.current.weather_code }
+      : {}),
   };
 }
 export async function weatherForecast(city, signal, fetcher = fetch) {

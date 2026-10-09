@@ -107,6 +107,8 @@
   cursor: pointer;
   touch-action: none;
   transition:
+    width 0.65s ease,
+    height 0.65s ease,
     filter 0.65s ease,
     opacity 0.65s ease;
 }
@@ -369,6 +371,228 @@
     animation: none;
   }
   .app-shell.voice-only:not(.motion-always) .navigation {
+    transition: none;
+  }
+}
+.hologram.presenting-core {
+  width: 52%;
+}
+.app-shell.voice-only {
+  height: 100dvh;
+  min-height: 0;
+}
+.app-shell.voice-only .main-shell {
+  height: 100%;
+  min-height: 0;
+}
+.app-shell.voice-only .workspace {
+  min-height: 0;
+}
+.holo-cards.presentation-panel {
+  top: 26px;
+  right: 32px;
+  width: 43%;
+  max-height: calc(100% - 104px);
+  display: block;
+  padding: 0 8px 14px;
+}
+.topic-stage {
+  min-width: 0;
+}
+.topic-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 16px;
+}
+.topic-heading > div {
+  min-width: 0;
+}
+.topic-heading > div:last-child {
+  display: flex;
+  gap: 4px;
+}
+.topic-heading h2 {
+  margin: 7px 0 0;
+  font-size: 23px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.topic-heading .icon-button {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+.topic-glyph {
+  height: 152px;
+  width: 100%;
+}
+.topic-glyph canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.topic-list {
+  display: grid;
+  gap: 10px;
+}
+.topic-list .holo-data {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  margin: 0;
+  padding: 15px;
+  animation-delay: calc(var(--item-order) * 55ms);
+  animation-fill-mode: backwards;
+  background: #0a1014ba;
+  border-left-width: 1px;
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    box-shadow 0.2s;
+}
+.topic-list .holo-data header {
+  font-size: 14px;
+}
+.topic-list .holo-data header > span {
+  line-height: 1.6;
+}
+.topic-list .holo-data.narrated {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow:
+    inset 3px 0 var(--accent),
+    0 0 24px var(--accent-soft);
+}
+.topic-list .holo-data.done header > span {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.topic-list .task-check {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--accent);
+  border-radius: 4px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.topic-list .holo-data-value.long {
+  font-size: 17px;
+  line-height: 1.65;
+  white-space: pre-line;
+}
+.topic-list footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  margin-top: 10px;
+}
+.topic-empty {
+  color: var(--muted);
+  padding: 14px 0;
+  font-size: 14px;
+}
+.pinned-topics {
+  pointer-events: auto;
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  max-width: calc(100% - 32px);
+  overflow-x: auto;
+  gap: 8px;
+  z-index: 5;
+}
+.pinned-topics button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 13px;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  background: #0a1014ed;
+  color: var(--muted);
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+.pinned-topics button[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.holo-console:has(.holo-authorization) .pinned-topics {
+  bottom: 84px;
+}
+.holo-console:has(.holo-authorization) .presentation-panel {
+  max-height: calc(100% - 184px);
+}
+@media (max-width: 700px) and (min-height: 551px) {
+  .hologram.presenting-core {
+    width: 100%;
+    height: 43%;
+  }
+  .holo-cards.presentation-panel {
+    top: 43%;
+    bottom: 74px;
+    left: 14px;
+    right: 14px;
+    width: auto;
+    max-height: none;
+    padding: 0 3px 8px;
+  }
+  .topic-heading {
+    padding-bottom: 10px;
+  }
+  .topic-heading h2 {
+    font-size: 20px;
+  }
+  .topic-glyph {
+    height: 100px;
+  }
+  .topic-list .holo-data {
+    padding: 12px;
+  }
+  .holo-console:has(.holo-authorization) .presentation-panel {
+    bottom: 142px;
+    max-height: none;
+  }
+}
+@media (max-height: 550px) {
+  .hologram.presenting-core {
+    width: 48%;
+    height: 100%;
+  }
+  .holo-cards.presentation-panel {
+    top: 8px;
+    bottom: 66px;
+    right: 12px;
+    left: auto;
+    width: 49%;
+    max-height: none;
+  }
+  .topic-heading h2 {
+    font-size: 18px;
+  }
+  .topic-heading {
+    padding-bottom: 6px;
+    gap: 6px;
+  }
+  .topic-glyph {
+    height: 65px;
+  }
+  .holo-console:has(.holo-authorization) .presentation-panel {
+    bottom: 134px;
+    max-height: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell:not(.motion-always) .hologram {
     transition: none;
   }
 }

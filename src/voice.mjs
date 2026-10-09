@@ -1,4 +1,5 @@
 import { speechChunks } from "./core/speech.mjs";
+import { speechRate, voiceEffects } from "./core/voice-style.mjs";
 export class VoiceChannel {
   constructor({
     onTranscript,
@@ -6,6 +7,7 @@ export class VoiceChannel {
     onError,
     onLevel = () => {},
     onSpokenEnd = () => {},
+    onSegment = () => {},
   }) {
     Object.assign(this, {
       onTranscript,
@@ -13,6 +15,7 @@ export class VoiceChannel {
       onError,
       onLevel,
       onSpokenEnd,
+      onSegment,
     });
     this.recognition = null;
     this.utterance = null;
@@ -95,6 +98,7 @@ export class VoiceChannel {
     if (this.audioUrl) URL.revokeObjectURL(this.audioUrl);
     this.audioUrl = null;
     this.onLevel(0);
+    this.onSegment(null);
     if (recognition) {
       recognition.onstart =
         recognition.onresult =
@@ -107,6 +111,7 @@ export class VoiceChannel {
     if (!this.closed) this.onPhase("idle");
   }
   speak(text, options = {}) {
+    options = { ...options, voiceRate: speechRate(text, options) };
     if (
       ["neural", "azure"].includes(options.voiceEngine) &&
       !window.jarvisDesktop?.voice &&
@@ -152,6 +157,7 @@ export class VoiceChannel {
       if (current()) {
         clearTimeout(this.startTimeout);
         this.onPhase("speaking");
+        this.onSegment({ text, index: 0, total: 1 });
       }
     };
     utterance.onend = () => {
@@ -234,7 +240,11 @@ export class VoiceChannel {
         // At most one sentence is prepared ahead, while the current one plays.
         upcoming =
           index + 1 < chunks.length ? synthesize(chunks[index + 1]) : null;
-        await this.playNeuralPart(part.wav, options, current);
+        await this.playNeuralPart(part.wav, options, current, {
+          text: chunks[index],
+          index,
+          total: chunks.length,
+        });
         if (!current()) return;
       }
       if (this.preparing === utterance) this.preparing = null;
@@ -249,7 +259,7 @@ export class VoiceChannel {
       }
     }
   }
-  async playNeuralPart(wav, options, current) {
+  async playNeuralPart(wav, options, current, segment) {
     const audioUrl = URL.createObjectURL(
         new Blob([wav], { type: "audio/wav" }),
       ),
@@ -263,7 +273,11 @@ export class VoiceChannel {
     const source = context.createMediaElementSource(audio),
       analyser = context.createAnalyser();
     analyser.fftSize = 256;
-    source.connect(analyser);
+    const effects = voiceEffects(context, options.voiceEffects !== false);
+    if (effects.input) {
+      source.connect(effects.input);
+      effects.output.connect(analyser);
+    } else source.connect(analyser);
     analyser.connect(context.destination);
     const samples = new Float32Array(analyser.fftSize);
     await new Promise((resolve, reject) => {
@@ -276,6 +290,7 @@ export class VoiceChannel {
         audio.onplay = audio.onended = audio.onerror = null;
         audio.pause();
         source.disconnect();
+        effects.dispose();
         analyser.disconnect();
         URL.revokeObjectURL(audioUrl);
         if (this.audio === audio) {
@@ -302,6 +317,7 @@ export class VoiceChannel {
       audio.onplay = () => {
         if (current()) {
           this.onPhase("speaking");
+          this.onSegment(segment);
           meter();
         }
       };

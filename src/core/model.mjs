@@ -44,6 +44,9 @@ export const VOICE_DEFAULTS = Object.freeze({
   listenOnLaunch: true,
   listenInBackground: true,
   autoMemory: true,
+  voiceEffects: true,
+  voiceMode: "auto",
+  autoPin: true,
   intensity: 1,
 });
 
@@ -68,6 +71,7 @@ export function initialState() {
     tasks: [],
     runs: [],
     cards: [],
+    pins: [],
     agent: { provider: "local", model: "", workspace: "", autonomy: false },
     memories: [],
     messages: [],
@@ -79,6 +83,24 @@ export function validateState(state) {
   if (!state || typeof state !== "object" || Array.isArray(state))
     throw Error("Estado local invalido.");
   validateRuns(state.runs || []);
+  if (
+    state.pins !== undefined &&
+    (!Array.isArray(state.pins) ||
+      state.pins.length > 6 ||
+      new Set(state.pins).size !== state.pins.length ||
+      state.pins.some(
+        (topic) =>
+          ![
+            "tasks",
+            "weather",
+            "news",
+            "activity",
+            "status",
+            "memory",
+          ].includes(topic),
+      ))
+  )
+    throw Error("Topicos fixados invalidos.");
   const agent = state.agent || { provider: "local", model: "", workspace: "" };
   if (
     !["local", "ollama"].includes(agent.provider) ||
@@ -106,7 +128,20 @@ export function validateState(state) {
           item.unit.length > 50 ||
           typeof item.source !== "string" ||
           item.source.length > 2000 ||
-          typeof item.at !== "string",
+          typeof item.at !== "string" ||
+          (item.kind !== undefined &&
+            ![
+              "tasks",
+              "weather",
+              "news",
+              "activity",
+              "status",
+              "memory",
+            ].includes(item.kind)) ||
+          (item.weatherCode !== undefined &&
+            (!Number.isInteger(item.weatherCode) ||
+              item.weatherCode < 0 ||
+              item.weatherCode > 99)),
       ))
   )
     throw Error("Dados de tela invalidos.");
@@ -142,7 +177,21 @@ export function validateState(state) {
   if (
     typeof options.listenOnLaunch !== "boolean" ||
     typeof options.listenInBackground !== "boolean" ||
-    typeof options.autoMemory !== "boolean"
+    typeof options.autoMemory !== "boolean" ||
+    typeof options.voiceEffects !== "boolean" ||
+    typeof options.autoPin !== "boolean" ||
+    ![
+      "auto",
+      "normal",
+      "informative",
+      "confirmation",
+      "analysis",
+      "warning",
+      "urgent",
+      "humor",
+      "greeting",
+      "low_priority",
+    ].includes(options.voiceMode)
   )
     throw Error("Preferencias do nucleo invalidas.");
   if (

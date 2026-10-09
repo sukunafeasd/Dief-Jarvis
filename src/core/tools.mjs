@@ -26,6 +26,13 @@ export const TOOLS = Object.freeze({
   ),
   "task.complete": spec("Concluir tarefa", null, false, { id: text(100) }),
   "memory.create": spec("Guardar memoria", null, false, { text: text(4000) }),
+  "screen.pin": spec("Fixar ou desfixar topico da central", null, false, {
+    topic: {
+      type: "string",
+      enum: ["tasks", "weather", "news", "activity", "status", "memory"],
+    },
+    mode: { type: "string", enum: ["pin", "unpin"] },
+  }),
   "memory.search": spec(
     "Consultar memorias",
     null,
@@ -285,7 +292,11 @@ export function localPlan(goal) {
     );
     if (memorySearch)
       return { tool: "memory.search", args: { query: memorySearch[1] } };
-    if (/^(?:consulte|liste) (?:minhas |as )?tarefas$/.test(command))
+    if (
+      /^(?:(?:consulte|liste) (?:minhas |as )?tarefas|quais (?:sao (?:as )?)?tarefas(?: temos)?|quantas tarefas(?: temos)?)$/.test(
+        command,
+      )
+    )
       return { tool: "task.list", args: {} };
     const complete = part.match(/^conclua tarefa\s+(.+)$/i);
     if (complete)

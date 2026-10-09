@@ -275,6 +275,32 @@ export default function Settings({
               interromper.
             </p>
             {toggle("sound", "Efeitos sonoros")}
+            {toggle("voiceEffects", "Acabamento vocal suave")}
+            <label className="setting-row">
+              <span>Cadencia da voz</span>
+              <select
+                aria-label="Cadencia da voz"
+                value={options.voiceMode}
+                onChange={(event) => save({ voiceMode: event.target.value })}
+              >
+                {[
+                  ["auto", "Automatica"],
+                  ["normal", "Normal"],
+                  ["informative", "Informativa"],
+                  ["confirmation", "Confirmacao"],
+                  ["analysis", "Analise"],
+                  ["warning", "Alerta"],
+                  ["urgent", "Urgente"],
+                  ["humor", "Humor discreto"],
+                  ["greeting", "Saudacao"],
+                  ["low_priority", "Baixa prioridade"],
+                ].map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="setting-row">
               <span>Motor da voz</span>
               <select
@@ -587,6 +613,7 @@ export default function Settings({
         {section === "data" && (
           <>
             {toggle("autoMemory", "Guardar fatos pessoais ao conversar")}
+            {toggle("autoPin", "Fixar topicos consultados frequentemente")}
             <div className="setting-row">
               <span>Armazenamento</span>
               <span className="setting-value">{platform.storage}</span>

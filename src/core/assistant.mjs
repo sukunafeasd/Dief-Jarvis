@@ -3,17 +3,55 @@ import { textValue, canonical } from "./model.mjs";
 import { autoExecute as mayAutoExecute } from "./execution-policy.mjs";
 export { mayAutoExecute };
 function localSummary(observation) {
-  if (["task.list", "task.search"].includes(observation.tool)) {
+  if (
+    ["task.list", "task.search"].includes(observation.tool) ||
+    (observation.tool === "screen.open" && observation.output.startsWith("{"))
+  ) {
     const result = JSON.parse(observation.output);
     return `Encontrei ${result.total} tarefa(s). ${
       result.tasks
-        .slice(0, 3)
-        .map((task) => `${task.text}: ${task.done ? "concluida" : "aberta"}`)
+        .slice(0, 6)
+        .map(
+          (task) =>
+            `${task.text.length > 180 ? task.text.slice(0, 177) + "..." : task.text}: ${task.done ? "concluida" : "aberta"}`,
+        )
         .join("; ") || "Nenhuma tarefa encontrada."
     }`;
   }
   if (observation.tool === "task.complete")
     return `Conclui a tarefa: ${JSON.parse(observation.output).text}.`;
+  if (observation.tool === "weather.current") {
+    const data = JSON.parse(observation.output);
+    return `${data.title}: ${data.temperature} graus Celsius. ${data.condition || "Condicao do tempo nao informada."}`;
+  }
+  if (observation.tool === "weather.forecast") {
+    const data = JSON.parse(observation.output);
+    return (
+      `Previsao para ${data.title}. ` +
+      data.days
+        .slice(0, 3)
+        .map(
+          (day) =>
+            `${day.date}: minima ${day.minC}, maxima ${day.maxC} graus Celsius. Chance de chuva: ${day.precipitationChance} por cento.`,
+        )
+        .join(" ")
+    );
+  }
+  if (observation.tool === "news.headlines")
+    return (
+      "Noticias de tecnologia, pelo Hacker News. " +
+      JSON.parse(observation.output)
+        .slice(0, 5)
+        .map((item) => item.title + ".")
+        .join(" ")
+    );
+  if (observation.tool === "system.hardware") {
+    const data = JSON.parse(observation.output);
+    return `Memoria RAM em ${data.memory.usedPercent} por cento de uso. Os detalhes do sistema estao na tela.`;
+  }
+  if (observation.tool === "screen.open") {
+    return observation.output;
+  }
   return observation.output.length <= 3500
     ? observation.output
     : observation.output.slice(0, 3400) +

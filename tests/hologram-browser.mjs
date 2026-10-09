@@ -30,7 +30,7 @@ try {
     errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(url);
-  await page.locator("canvas").waitFor();
+  await page.locator('[data-testid="hologram"] canvas').waitFor();
   assert.equal(await page.locator(".command-form").count(), 0);
   assert.equal(
     await page.evaluate(() => document.querySelector(".navigation").inert),
@@ -62,12 +62,18 @@ try {
     .click();
   await page.getByRole("region", { name: "Jarvis por voz" }).waitFor();
   assert.equal(await page.locator(".command-form").count(), 0);
+  assert.ok((await page.locator(".holo-data-value").innerText()).includes("2"));
+  await page
+    .getByRole("button", { name: "Mostrar Tarefas", exact: true })
+    .click();
   assert.ok(
     (await page.locator(".holo-cards").innerText()).includes(
       "revisar os executores",
     ),
   );
-  assert.ok((await page.locator(".holo-data-value").innerText()).includes("2"));
+  await page
+    .getByRole("button", { name: "Mostrar Atividade", exact: true })
+    .click();
   for (const [name, width, height] of [
     ["desktop", 1440, 900],
     ["wide", 1920, 1080],
@@ -75,7 +81,7 @@ try {
     ["landscape", 844, 390],
   ]) {
     await page.setViewportSize({ width, height });
-    await page.waitForTimeout(250);
+    await page.waitForTimeout(850);
     assert.equal(
       await page.evaluate(
         () => document.documentElement.scrollWidth > innerWidth,
@@ -99,7 +105,7 @@ try {
         cards.x + cards.width <= width + 1 &&
         cards.y >= 0 &&
         cards.y + cards.height <= height + 1,
-      `${name}: cards must fit inside the viewport`,
+      `${name}: cards must fit inside the viewport ${JSON.stringify(cards)}`,
     );
     assert.equal(
       await page
@@ -123,7 +129,7 @@ try {
         `${name}: data source stays inside its card`,
       );
     }
-    const canvas = page.locator("canvas"),
+    const canvas = page.locator('[data-testid="hologram"] canvas'),
       firstBounds = await canvas.boundingBox();
     await page.waitForTimeout(200);
     const settledBounds = await canvas.boundingBox();
@@ -149,17 +155,22 @@ try {
   }
   await page.setViewportSize({ width: 1440, height: 900 });
   const before = await page
-    .locator("canvas")
+    .locator('[data-testid="hologram"] canvas')
     .evaluate((canvas) => canvas.toDataURL());
   await page.waitForTimeout(350);
   assert.notEqual(
-    await page.locator("canvas").evaluate((canvas) => canvas.toDataURL()),
+    await page
+      .locator('[data-testid="hologram"] canvas')
+      .evaluate((canvas) => canvas.toDataURL()),
     before,
     "hologram animates",
   );
   await page.getByRole("button", { name: "Tela cheia", exact: true }).click();
   await page.waitForFunction(() => !!document.fullscreenElement);
   await page.evaluate(() => document.exitFullscreen());
+  await page
+    .getByRole("button", { name: "Mostrar Tarefas", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Fechar tarefas", exact: true })
     .click();

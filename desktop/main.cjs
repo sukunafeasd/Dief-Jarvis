@@ -328,6 +328,7 @@ app
           const card = await engine.execute({
             type: "screen.card",
             title: "Memoria RAM / sistema",
+            kind: "status",
             value: String(hardware.memory.usedPercent),
             unit: "%",
             source: hardware.source,
@@ -341,6 +342,7 @@ app
             const card = await engine.execute({
               type: "screen.card",
               title: "Hacker News / tecnologia",
+              kind: "news",
               value: item.title,
               unit: "",
               source: `Hacker News / ${item.source}`,
@@ -355,6 +357,10 @@ app
           const card = await engine.execute({
             type: "screen.card",
             title: weather.title,
+            kind: "weather",
+            ...(weather.weatherCode !== undefined
+              ? { weatherCode: weather.weatherCode }
+              : {}),
             value: weather.value,
             unit: weather.unit,
             source: `Open-Meteo / ${weather.measuredAt} / ${weather.source}`,
@@ -374,6 +380,7 @@ app
           const card = await engine.execute({
             type: "screen.card",
             title: `Previsao / ${forecast.title}`.slice(0, 100),
+            kind: "weather",
             value: forecast.days
               .map(
                 (day) =>

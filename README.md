@@ -1,11 +1,18 @@
 # Dief Jarvis
 
-Assistente pessoal independente do Painel Dief. Versao **1.0.0-alpha.6**.
+Assistente pessoal independente do Painel Dief. Versao **1.0.0-alpha.7**.
 Esta e uma alpha, nao a versao final 1.0 nem controle irrestrito do computador.
 
 ## Disponivel
 
 - Holograma Three.js full-bleed, paletas ambar/ciano, movimento e reacao ao audio.
+- Apresentacao contextual: nucleo a esquerda e dados a direita (empilhados no
+  celular), com hologramas de tarefas, jornal, atividade, sol, chuva e neve.
+  Destaque acompanha trechos do audio realmente em reproducao, nao temporizador
+  ficticio nem sincronizacao palavra a palavra.
+- Fixacao persistente de seis topicos por comando/botao. Interesse repetido pode
+  fixar um topico automaticamente; desligavel nos ajustes. Mostra os ultimos dados
+  consultados com horario e origem, sem atualizar dados web em segundo plano.
 - Holograma como central, sem legendas ou controles de microfone. Toque para
   ativar/adormecer; arrastar gira o nucleo sem ativar a escuta. Menu recolhido,
   texto em vista separada e memoria/execucoes/auditoria reunidas nos registros.
@@ -16,6 +23,11 @@ Esta e uma alpha, nao a versao final 1.0 nem controle irrestrito do computador.
   Alex/Santa para comparar e George em ingles britanico. Fala por trechos com
   preparo do proximo enquanto o atual toca, normalizacao de unidades/Markdown.
   Aproximacao de estilo, nao voz oficial/clone do ator do filme.
+- Perfil vocal original com nove modos de cadencia, personalidade concisa e
+  acabamento Web Audio: filtro, equalizacao, compressor e limitador. Direcao
+  artistica nao altera idade/timbre do modelo nem equivale a treinamento vocal.
+  Cache somente em RAM para oito frases genericas, limitado a 16 variantes;
+  falas pessoais nunca entram nele. Limpo ao parar o motor de sintese.
 - Azure Speech opcional preparado: Antonio/Caio PT-BR, chave cifrada com
   safeStorage em tabela separada no EXE, sem chave em estado/exportacao/auditoria.
   Nenhuma conta foi criada e nenhuma sintese Azure real foi feita nesta rodada.
@@ -47,7 +59,9 @@ Nao pareamos Painel Dief/Mongo, celular, relogio, calendario ou e-mail.
 Nao ha bypass de UAC/CAPTCHA nem controle visual de jogos/apps sem UIA.
 Comandos aprovados podem acessar tudo que o processo tiver direito, inclusive
 fora da pasta de trabalho: o executor PowerShell NAO e uma sandbox. Nao ha
-garantia de seguranca ou controle universal. Elevacao continua manual pelo UAC.
+garantia de seguranca ou controle universal. O manifesto de empacotamento pede
+administrador ao iniciar o futuro EXE; o UAC continua exigindo autorizacao do
+Windows. Essa elevacao nao foi validada em uma execucao nativa nesta rodada.
 
 Escuta inicia por toque ou automaticamente se o microfone ja estiver autorizado.
 A permissao do navegador/Windows nao e contornada. Escuta ao minimizar pode
@@ -90,6 +104,8 @@ npm run test:synthesis
 npm run test:voice
 npm run test:wake
 npm run test:voice-stream
+npm run test:voice-style
+npm run test:presentation
 ```
 
 Os dois ultimos usam modelos reais e audio sintetico, nao microfone fisico.
@@ -114,13 +130,16 @@ JARVIS_AZURE_KEY somente no ambiente do servidor e reinicie-o manualmente.
 Nunca use variaveis VITE_* para segredos. No EXE, configure em Ajustes > Voz.
 Nao contratamos, instalamos nem ativamos um servico pago.
 
-**Nao publicar binarios alpha.6 antes de resolver redistribuicao GPL do EPhone e
+**Nao publicar binarios alpha.7 antes de resolver redistribuicao GPL do EPhone e
 validacao Windows real.** Scripts de pacote usam publish never; arquivos de
 build/teste ficam fora do Git. Instalador/downloads do Painel Dief nao mudaram.
 
 ## Comandos
 
 - Jarvis, mostre minhas tarefas.
+- Jarvis, quais tarefas temos?
+- Jarvis, fixe tarefas.
+- Jarvis, desfixe clima.
 - Jarvis, crie uma tarefa: revisar o projeto.
 - Jarvis, lembre que prefiro respostas curtas.
 - Jarvis, hoje eu corri dois quilometros.
@@ -149,6 +168,7 @@ reais, sem executar novamente suas etapas. Limites operacionais: 24 ciclos,
 - [Pesquisa de projetos publicos](docs/PESQUISA-AGENTES.md)
 - [Relatorio de testes alpha.5](docs/TEST_REPORT_ALPHA5.md)
 - [Relatorio de testes e limites alpha.6](docs/TEST_REPORT_ALPHA6.md)
+- [Apresentacao contextual, voz e testes alpha.7](docs/TEST_REPORT_ALPHA7.md)
 
 src/core guarda estado e contratos; src/components guarda interface;
 desktop guarda brokers, drivers e SQLite; tests guarda verificacoes.
